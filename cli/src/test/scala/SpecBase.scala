@@ -106,5 +106,16 @@ trait SpecBase extends Specification {
     <restriction base="string">
     </restriction>
   </simpleType>
+
+  <element name="TopLevelElement">
+    <complexType>
+      <sequence>
+        <choice maxOccurs="unbounded">
+          <element name="foo" type="string"/>
+          <any namespace="##other" processContents="lax" />
+        </choice>
+      </sequence>
+    </complexType>
+  </element>
 </schema>"""
 }
