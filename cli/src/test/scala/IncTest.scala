@@ -13,7 +13,17 @@ object IncTest extends SpecBase {
     }
 
     "include top-level complex type as a case class" >> {
-      entitySource must include("case class Address(")
+      "named similarly" >> {
+        entitySource must include("case class Address(")
+      }
+
+      "having particle elements as parameters" >> {
+        entitySource must find(
+          """case class Address\(name: String,\s*
+            |\s*street: String,\s*
+            |\s*city: String\)""".stripMargin)
+      }
+
     }
 
     "include top-level element as a case class" >> {

@@ -26,7 +26,7 @@ import scalaxb.compiler.{Logger, Config, Snippet}
 import xmlschema._
 import Defs._
 
-class Generator(val schema: XSchema, val logger: Logger, config: Config) extends Lookup {
+class Generator(val schema: XSchema, val logger: Logger, val config: Config) extends Params {
   def log(msg: String) = logger.log(msg)
 
   def generateEntitySource: Snippet =
@@ -43,7 +43,11 @@ class Generator(val schema: XSchema, val logger: Logger, config: Config) extends
 
   def generateComplexTypeEntity(name: FullName, decl: Tagged[XComplexType]) = {
     val localName = name.localName
-    Snippet(<source>case class { localName }()</source>)
+    val list = decl.particles
+    val paramList = list map { buildParam }
+
+    Snippet(<source>case class { localName }({
+      paramList.map(_.toScalaCode).mkString(", " + NL + indent(1))})</source>)
   }
 
   def headerSnippet: Snippet =

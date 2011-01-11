@@ -23,7 +23,9 @@ trait SpecBase extends Specification {
     <sequence>
       <element name="shipTo"     type="ipo:Address"/>
       <element name="billTo"     type="ipo:Address"/>
-      <element ref="ipo:comment" minOccurs="0"/>
+      <!-- element ref="ipo:comment" minOccurs="0"/ -->
+      <element name="comment" type="string"/>
+
       <element name="items"      type="ipo:Items"/>
     </sequence>
     <attribute name="orderDate" type="date"/>
