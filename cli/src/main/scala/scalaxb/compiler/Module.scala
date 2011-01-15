@@ -42,6 +42,13 @@ case class Snippet(definition: Seq[Node],
   companion: Seq[Node] = <source/>,
   implicitValue: Seq[Node]  = <source/>)
 
+object Snippet {
+  def apply(snippets: Snippet*): Snippet =
+    Snippet((new scala.xml.NodeBuffer /: snippets) ((b, s) => { b &+ s.definition }),
+      (new scala.xml.NodeBuffer /: snippets) ((b, s) => { b &+ s.companion }),
+      (new scala.xml.NodeBuffer /: snippets) ((b, s) => { b &+ s.implicitValue }) )
+}
+
 trait CanBeWriter[A] {
  def toWriter(value: A): PrintWriter
  def newInstance(fileName: String): A
@@ -50,13 +57,6 @@ trait CanBeWriter[A] {
 trait CanBeRawSchema[A, B] {
   def toRawSchema(value: A): B
   def toURI(value: A): URI
-}
-
-object Snippet {
-  def apply(snippets: Snippet*): Snippet =
-    Snippet((new scala.xml.NodeBuffer /: snippets) ((b, s) => { b &+ s.definition }),
-      (new scala.xml.NodeBuffer /: snippets) ((b, s) => { b &+ s.companion }),
-      (new scala.xml.NodeBuffer /: snippets) ((b, s) => { b &+ s.implicitValue }) )
 }
 
 trait Module extends Logger {
