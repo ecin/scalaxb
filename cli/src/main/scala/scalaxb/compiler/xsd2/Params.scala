@@ -3,6 +3,7 @@ package scalaxb.compiler.xsd2
 import xmlschema._
 import scalaxb.compiler.xsd.{XsAny, BuiltInSimpleTypeSymbol, XsTypeSymbol, XsInt}
 import Defs._
+import java.net.URI
 
 trait Params extends Lookup {
 
@@ -16,7 +17,7 @@ trait Params extends Lookup {
     else if (minOccurs == 0) Optional
     else Single
 
-  case class Param(namespace: Option[String],
+  case class Param(namespace: Option[URI],
     name: String,
     typeSymbol: Tagged[Any],
     cardinality: Cardinality,
@@ -70,11 +71,6 @@ trait Params extends Lookup {
         }} getOrElse {error("type not found for element: " + tagged.value.toString)}
       }
     } getOrElse {
-      println(elem.toString)
       Tagged(XsInt, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, "int")) }
   }
-
-
-
-
 }

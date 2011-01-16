@@ -35,7 +35,7 @@ class Driver extends Module { driver =>
   import scala.xml.factory.{XMLLoader}
   import javax.xml.parsers.SAXParser
 
-  type Schema = XSchema
+  type Schema = ReferenceSchema
   type Context = SchemaContext
 
   def generate(schema: Schema, context: Context, config: Config): Snippet =
@@ -57,9 +57,11 @@ class Driver extends Module { driver =>
       def includeLocations: Seq[String] = Nil
 
       def toSchema(context: Context): Schema = {
-        val schema = fromXML[XSchema](elem)
-        log("Driver.toSchema: " + schema.toString())
-        schema
+        val unbound = fromXML[XSchema](elem)
+        // log("Driver.toSchema: " + unbound.toString())
+        val wrapped = ReferenceSchema.fromSchema(unbound, elem.scope)
+        log("Driver.toSchema: " + wrapped.toString)
+        wrapped
       }
   }
   }

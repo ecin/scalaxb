@@ -26,13 +26,13 @@ import scalaxb.compiler.{Logger, Config, Snippet}
 import xmlschema._
 import Defs._
 
-class Generator(val schema: XSchema, val logger: Logger, val config: Config) extends Params {
+class Generator(val schema: ReferenceSchema, val logger: Logger, val config: Config) extends Params {
   def log(msg: String) = logger.log(msg)
 
   def generateEntitySource: Snippet =
     Snippet(
       headerSnippet ::
-      (schema flatMap {
+      (schema.unbound flatMap {
         case Tagged(x, tag) => x match {
           case decl: XComplexType => processComplexType(Tagged(decl, tag))
           case _ => Nil

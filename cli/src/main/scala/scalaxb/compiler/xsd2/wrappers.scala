@@ -26,40 +26,41 @@ import scala.collection.immutable
 import scalaxb._
 import xmlschema._
 import Defs._
+import java.net.{URI}
 
-case class ReferenceSchema(targetNamespace: Option[String],
-                           topElems: Map[String, Tagged[XTopLevelElement]],
-                           topTypes: Map[String, Tagged[XAnnotatedable]],
-                           topAttrs: Map[String, Tagged[XTopLevelAttribute]],
-                           topGroups: Map[String, Tagged[XNamedGroup]],
-                           topAttrGroups: Map[String, Tagged[XNamedAttributeGroup]],
+case class ReferenceSchema(targetNamespace: Option[URI],
+                           topElems: immutable.ListMap[String, Tagged[XTopLevelElement]],
+                           topTypes: immutable.ListMap[String, Tagged[XAnnotatedable]],
+                           topAttrs: immutable.ListMap[String, Tagged[XTopLevelAttribute]],
+                           topGroups: immutable.ListMap[String, Tagged[XNamedGroup]],
+                           topAttrGroups: immutable.ListMap[String, Tagged[XNamedAttributeGroup]],
                            scope: scala.xml.NamespaceBinding,
                            unbound: XSchema)
 
 object ReferenceSchema {
   def fromSchema(schema: XSchema, scope: scala.xml.NamespaceBinding): ReferenceSchema = {
-    val ns = schema.targetNamespace map { _.toString }
+    val ns = schema.targetNamespace
     ReferenceSchema(ns,
       immutable.ListMap[String, Tagged[XTopLevelElement]](schema.xschemasequence1 collect {
-        case DataRecord(_, _, x: XTopLevelElement) =>
+        case XSchemaSequence1(DataRecord(_, _, x: XTopLevelElement), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
       }: _*),
       immutable.ListMap[String, Tagged[XAnnotatedable]](schema.xschemasequence1 collect {
-        case DataRecord(_, _, x: XTopLevelSimpleType) =>
+        case XSchemaSequence1(DataRecord(_, _, x: XTopLevelSimpleType), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
-        case DataRecord(_, _, x: XTopLevelComplexType) =>
+        case XSchemaSequence1(DataRecord(_, _, x: XTopLevelComplexType), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
       }: _*),
       immutable.ListMap[String, Tagged[XTopLevelAttribute]](schema.xschemasequence1 collect {
-        case DataRecord(_, _, x: XTopLevelAttribute) =>
+        case XSchemaSequence1(DataRecord(_, _, x: XTopLevelAttribute), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
       }: _*),
       immutable.ListMap[String, Tagged[XNamedGroup]](schema.xschemasequence1 collect {
-        case DataRecord(_, _, x: XNamedGroup) =>
+        case XSchemaSequence1(DataRecord(_, _, x: XNamedGroup), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
       }: _*),
       immutable.ListMap[String, Tagged[XNamedAttributeGroup]](schema.xschemasequence1 collect {
-        case DataRecord(_, _, x: XNamedAttributeGroup) =>
+        case XSchemaSequence1(DataRecord(_, _, x: XNamedAttributeGroup), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
       }: _*),
       scope,

@@ -1,36 +1,90 @@
 package scalaxb.compiler.xsd2
 
+import java.net.{URI}
 import javax.xml.namespace.{QName}
 import xmlschema._
-import scalaxb.compiler.{ScalaNames, Logger, Config, Snippet}
+import scalaxb.compiler.{ScalaNames, Logger, Config, Snippet, ReferenceNotFound}
 import Defs._
 import scalaxb.compiler.xsd.{XsAny, XsInt, XsTypeSymbol, BuiltInSimpleTypeSymbol}
+import scala.xml.{NamespaceBinding}
+
+case class QualifiedName(namespace: Option[URI], localPart: String)
+
+object QualifiedName {
+  def apply(namespace: URI, name: String): QualifiedName = QualifiedName(Some(namespace), name)
+
+  implicit def fromQName(value: QName)(implicit targetNamespace: Option[URI], scope: NamespaceBinding) =
+    splitTypeName(value.toString)
+
+  def splitTypeName(name: String)(implicit targetNamespace: Option[URI], scope: NamespaceBinding): QualifiedName =
+    if (name.contains('@')) QualifiedName(targetNamespace, name)
+    else if (name.contains(':')) {
+        val prefix = name.dropRight(name.length - name.indexOf(':'))
+        val value = name.drop(name.indexOf(':') + 1)
+        QualifiedName(Option[String](scope.getURI(prefix)) map {new URI(_)}, value)
+      }
+      else QualifiedName(Option[String](scope.getURI(null)) map {new URI(_)}, name)
+}
 
 trait Lookup extends ScalaNames {
   implicit val lookup = this
 
   def config: Config
+  def schema: ReferenceSchema
+  implicit def scope: NamespaceBinding = schema.scope
+  implicit def targetNamespace = schema.targetNamespace
 
   def typeName(decl: Tagged[XComplexType]) =
     FullName(None, decl.tag.name)
 
-  def resolveType(typeName: QName): Tagged[Any] =
-    if (typeName == XS_ANY_TYPE) Tagged(XsAny, HostTag(Some(XML_URI), SimpleTypeHost, "anyType"))
-    else simpleType(typeName) getOrElse {
-      complexType(typeName) getOrElse {
-        error("type was not found: " + typeName.toString)
-      }
+  def resolveType(typeName: QualifiedName): Tagged[Any] = typeName match {
+    case AnyType(tagged)     => tagged
+    case BuiltInType(tagged) => tagged
+    case SimpleType(tagged)  => tagged
+    case ComplexType(tagged) => tagged
+    case _ => throw new ReferenceNotFound("type", typeName.namespace map {_.toString}, typeName.localPart)
+  }
+
+  object AnyType {
+    def unapply(typeName: QualifiedName): Option[Tagged[XsTypeSymbol]] = typeName match {
+      case XS_ANY_TYPE => Some(Tagged(XsAny, HostTag(Some(XML_URI), SimpleTypeHost, "anyType")))
+      case _ => None
     }
+  }
 
-  def simpleType(typeName: QName): Option[Tagged[Any]] =
-    if (XsTypeSymbol.toTypeSymbol.isDefinedAt(typeName.getLocalPart))
-      Some(Tagged(XsTypeSymbol.toTypeSymbol(typeName.getLocalPart),
-        HostTag(Some(typeName.getNamespaceURI), SimpleTypeHost, typeName.getLocalPart)))
-    //if (typeName.getNamespaceURI == XML_SCHEMA_URI) Some(Tagged(XsTypeSymbol.toTypeSymbol(typeName.getLocalPart),
-    //  HostTag(Some(typeName.getNamespaceURI), SimpleTypeHost, typeName.getLocalPart)))
-    else Some(Tagged(XsInt, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, typeName.toString)))
+  object BuiltInType {
+    def unapply(typeName: QualifiedName): Option[Tagged[XsTypeSymbol]] = typeName match {
+      case QualifiedName(Some(XML_SCHEMA_URI), localPart) => Some(Tagged(XsTypeSymbol.toTypeSymbol(localPart),
+        HostTag(typeName.namespace, SimpleTypeHost, localPart)))
+      case _ => None
+    }
+  }
 
-  def complexType(typeName: QName): Option[Tagged[XComplexType]] = None
+  object SimpleType {
+    def unapply(typeName: QualifiedName): Option[Tagged[XSimpleType]] = typeName match {
+      case QualifiedName(targetNamespace, localPart) if schema.topTypes contains localPart =>
+        schema.topTypes(typeName.localPart) match {
+          case Tagged(value, tag) => value match {
+            case x: XSimpleType => Some(Tagged(x, tag))
+            case _ => None
+          }
+        }
+      case _ => None
+    }
+  }
+
+  object ComplexType {
+    def unapply(typeName: QualifiedName): Option[Tagged[XComplexType]] = typeName match {
+      case QualifiedName(targetNamespace, localPart) if schema.topTypes contains localPart =>
+        schema.topTypes(typeName.localPart) match {
+          case Tagged(value, tag) => value match {
+            case x: XComplexType => Some(Tagged(x, tag))
+            case _ => None
+          }
+        }
+      case _ => None
+    }
+  }
 
   def splitLongSequence(tagged: Tagged[KeyedGroup]): List[Tagged[KeyedGroup]] = List(tagged)
 
@@ -40,8 +94,12 @@ trait Lookup extends ScalaNames {
 
 
   def buildTypeName(tagged: Tagged[Any], shortLocal: Boolean = false): String = tagged.value match {
+    case XsAny                           => "scalaxb.DataRecord[Any]"
     case symbol: BuiltInSimpleTypeSymbol => symbol.name
-//    case XsAny          => "scalaxb.DataRecord[Any]"
+    case decl: XSimpleType               => decl.name getOrElse {"??"}
+    case decl: XComplexType              => decl.name getOrElse {"??"}
+
+//
 //    case XsNillableAny  => "scalaxb.DataRecord[Option[Any]]"
 //    case XsLongAll      => "Map[String, scalaxb.DataRecord[Any]]"
 //    case XsLongAttribute => "Map[String, scalaxb.DataRecord[Any]]"
@@ -58,7 +116,7 @@ trait Lookup extends ScalaNames {
 //    case symbol: AttributeGroupSymbol => buildTypeName(attributeGroups(symbol.namespace, symbol.name), shortLocal)
 //    case XsXMLFormat(decl: ComplexTypeDecl) => "scalaxb.XMLFormat[" + buildTypeName(decl, shortLocal) + "]"
 //    case XsXMLFormat(group: AttributeGroupDecl) => "scalaxb.XMLFormat[" + buildTypeName(group, shortLocal) + "]"
-    case _ => ""
+    case _ => "??"
   }
 
   def startsWithNumber(name: String) =

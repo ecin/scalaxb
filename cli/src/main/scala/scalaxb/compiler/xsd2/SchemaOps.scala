@@ -22,7 +22,8 @@
 
 package scalaxb.compiler.xsd2
 
-import javax.xml.namespace.{QName}
+import java.net.{URI}
+import scala.xml.{NamespaceBinding}
 import scalaxb._
 import xmlschema._
 import scala.collection.immutable
@@ -30,14 +31,14 @@ import scala.collection.immutable
 object Defs {
   implicit def schemaToSchemaOps(schema: XSchema): SchemaOps = new SchemaOps(schema)
   implicit def complexTypeToComplexTypeOps(decl: Tagged[XComplexType]): ComplexTypeOps = new ComplexTypeOps(decl)
-  val XML_SCHEMA_URI = "http://www.w3.org/2001/XMLSchema"
-  val XSI_URL = "http://www.w3.org/2001/XMLSchema-instance"
+  val XML_SCHEMA_URI = new URI("http://www.w3.org/2001/XMLSchema")
+  val XSI_URL = new URI("http://www.w3.org/2001/XMLSchema-instance")
   val XSI_PREFIX = "xsi"
-  val XML_URI = "http://www.w3.org/XML/1998/namespace"
+  val XML_URI = new URI("http://www.w3.org/XML/1998/namespace")
   val XML_PREFIX = "xml"
   val NL = System.getProperty("line.separator")
 
-  val XS_ANY_TYPE = new QName(XML_SCHEMA_URI, "anyType")
+  val XS_ANY_TYPE = QualifiedName(XML_SCHEMA_URI, "anyType")
 }
 
 abstract class TopLevelType
@@ -47,19 +48,19 @@ case object NamedGroupHost extends TopLevelType
 case object AttributeGroupHost extends TopLevelType
 case object ElementHost extends TopLevelType
 case object AttributeHost extends TopLevelType
-case class HostTag(namespace: Option[String], topLevel: TopLevelType, name: String)
+case class HostTag(namespace: Option[URI], topLevel: TopLevelType, name: String)
 object HostTag {
-  def apply(namespace: Option[String], elem: XTopLevelElement): HostTag =
+  def apply(namespace: Option[URI], elem: XTopLevelElement): HostTag =
       HostTag(namespace, ElementHost, elem.name getOrElse {error("name is required.")})
-  def apply(namespace: Option[String], decl: XTopLevelSimpleType): HostTag =
+  def apply(namespace: Option[URI], decl: XTopLevelSimpleType): HostTag =
     HostTag(namespace, SimpleTypeHost, decl.name getOrElse {error("name is required.")})
-  def apply(namespace: Option[String], decl: XTopLevelComplexType): HostTag =
+  def apply(namespace: Option[URI], decl: XTopLevelComplexType): HostTag =
       HostTag(namespace, ComplexTypeHost, decl.name getOrElse {error("name is required.")})
-  def apply(namespace: Option[String], attr: XTopLevelAttribute): HostTag =
+  def apply(namespace: Option[URI], attr: XTopLevelAttribute): HostTag =
       HostTag(namespace, AttributeHost, attr.name getOrElse {error("name is required.")})
-  def apply(namespace: Option[String], group: XNamedGroup): HostTag =
+  def apply(namespace: Option[URI], group: XNamedGroup): HostTag =
       HostTag(namespace, NamedGroupHost, group.name getOrElse {error("name is required.")})
-  def apply(namespace: Option[String], group: XNamedAttributeGroup): HostTag =
+  def apply(namespace: Option[URI], group: XNamedAttributeGroup): HostTag =
       HostTag(namespace, AttributeGroupHost, group.name getOrElse {error("name is required.")})
 }
 
@@ -95,7 +96,7 @@ object SchemaOps {
   def toThat(attr: XAttributable, tag: HostTag): Option[Tagged[Any]] = Some(Tagged(attr, tag))
 
   def schemaToList(schema: XSchema): List[Tagged[Any]] = {
-    val ns = schema.targetNamespace map { _.toString }
+    val ns = schema.targetNamespace
 
     // <xs:element ref="xs:simpleType"/>
     // <xs:element ref="xs:complexType"/>
@@ -188,7 +189,8 @@ class ComplexTypeOps(val decl: Tagged[XComplexType]) extends immutable.LinearSeq
   override def toList = list
 
   private lazy val list: List[Tagged[Any]] = ComplexTypeOps.complexTypeToList(decl)
-  def particles(implicit lookup: Lookup) = ComplexTypeOps.complexTypeToParticles(decl)
+  def particles(implicit lookup: Lookup, targetNamespace: Option[URI], scope: NamespaceBinding) =
+    ComplexTypeOps.complexTypeToParticles(decl)
 }
 
 object ComplexTypeOps {
@@ -233,7 +235,8 @@ object ComplexTypeOps {
     })
   }
 
-  def innerSequenceToParticles(tagged: Tagged[KeyedGroup])(implicit lookup: Lookup): List[Tagged[Any]] = {
+  def innerSequenceToParticles(tagged: Tagged[KeyedGroup])
+    (implicit lookup: Lookup, targetNamespace: Option[URI], scope: NamespaceBinding): List[Tagged[Any]] = {
     val seq = tagged.value.group
     if (seq.minOccurs != 1 || seq.maxOccurs != "1")
       if (seq.arg1.length == 1) seq.arg1(0) match {
@@ -256,7 +259,9 @@ object ComplexTypeOps {
    * returns list of Tagged[XSimpleType], Tagged[BuiltInSimpleTypeSymbol], Tagged[XElement], Tagged[KeyedGroup],
    * Tagged[XAny].
    */
-  def complexTypeToParticles(decl: Tagged[XComplexType])(implicit lookup: Lookup): List[Tagged[Any]] = {
+  def complexTypeToParticles(decl: Tagged[XComplexType])
+    (implicit lookup: Lookup, targetNamespace: Option[URI], scope: NamespaceBinding): List[Tagged[Any]] = {
+    import lookup._
     implicit val tag = decl.tag
 
     def processInnerParticle(particleKey: String, particle: XParticleOption) =
@@ -276,68 +281,54 @@ object ComplexTypeOps {
       })
       else List(Tagged(group, tag))
 
-    def processRestriction(restriction: XRestrictionTypable) =
-      // if base is already simple, keep it the same type for inheritance.
-      lookup.simpleType(restriction.base) map { base =>
-        List(base)
-      } getOrElse {
-        restriction.xrestrictiontypableoption map { _ match {
-        // see http://www.w3.org/TR/xmlschema-1/#Complex_Type_Definitions for details.
-        case DataRecord(_, _, x@XSimpleRestrictionModelSequence(_, _)) =>
-          lookup.complexType(restriction.base) map { base =>
-            complexTypeToParticles(base)
-          } getOrElse {
-            x.simpleType map { simpleType =>
-              List(Tagged(simpleType, tag))
-            } getOrElse {Nil}
-          }
+    def processRestriction(restriction: XRestrictionTypable) = {
+      val base: QualifiedName = restriction.base
+      base match {
+        case BuiltInType(tagged) => List(tagged)
+        case SimpleType(tagged)  => List(tagged)
 
-        // XTypeDefParticleOption is either XGroupRef or XExplicitGroupable
-        case DataRecord(_, Some(key), x: XGroupRef)          =>
-          // if base is a complex type, keep the same for inheritance, otherwise it should be anyType
-          lookup.complexType(restriction.base) map { base =>
-            complexTypeToParticles(base)
-          } getOrElse {
-            toParticles(KeyedGroup(key, x))
-          }
-        case DataRecord(_, Some(key), x: XExplicitGroupable) =>
-          // if base is a complex type, keep the same for inheritance, otherwise it should be anyType
-          lookup.complexType(restriction.base) map { base =>
-            complexTypeToParticles(base)
-          } getOrElse {
-            toParticles(KeyedGroup(key, x))
-          }
-        case _ => Nil
-      }} getOrElse {
-          lookup.complexType(restriction.base) map { base =>
-            complexTypeToParticles(base)
-          } getOrElse {Nil}
-      }
-    }
+        // if base is a complex type, keep the same for inheritance, otherwise it should be anyType
+        case ComplexType(tagged) => complexTypeToParticles(tagged)
 
-    def processExtension(extension: XExtensionTypable) =
-      lookup.simpleType(extension.base) map { base =>
-        List(base)
-      } getOrElse {
-        extension.arg1 map {
+        // restriction of anyType
+        case _ => restriction.xrestrictiontypableoption map { _ match {
+          // see http://www.w3.org/TR/xmlschema-1/#Complex_Type_Definitions for details.
+          case DataRecord(_, _, x@XSimpleRestrictionModelSequence(_, _)) =>
+            x.simpleType map { simpleType => List(Tagged(simpleType, tag)) } getOrElse {Nil}
+
           // XTypeDefParticleOption is either XGroupRef or XExplicitGroupable
-          case DataRecord(_, Some(key), x: XGroupRef)          =>
-            // if base is a complex type, append particles to base's particles, otherwise it should be anyType
-            lookup.complexType(extension.base) map { base =>
-              complexTypeToParticles(base) ::: toParticles(KeyedGroup(key, x))
-            } getOrElse {toParticles(KeyedGroup(key, x))}
-          case DataRecord(_, Some(key), x: XExplicitGroupable) =>
-            // if base is a complex type, append particles to base's particles, otherwise it should be anyType
-            lookup.complexType(extension.base) map { base =>
-              complexTypeToParticles(base) ::: toParticles(KeyedGroup(key, x))
-            } getOrElse {toParticles(KeyedGroup(key, x))}
+          case DataRecord(_, Some(key), x: XGroupRef)          => toParticles(KeyedGroup(key, x))
+          case DataRecord(_, Some(key), x: XExplicitGroupable) => toParticles(KeyedGroup(key, x))
           case _ => Nil
-        } getOrElse {
-          lookup.complexType(extension.base) map { base =>
-            complexTypeToParticles(base)
+        }} getOrElse {Nil}
+      } // base match
+    } // processRestriction
+
+    def processExtension(extension: XExtensionTypable) =  {
+      val base: QualifiedName = extension.base
+      base match {
+        case BuiltInType(tagged) => List(tagged)
+        case SimpleType(tagged)  => List(tagged)
+        case ComplexType(tagged) =>
+          extension.arg1 map {
+            // XTypeDefParticleOption is either XGroupRef or XExplicitGroupable
+            case DataRecord(_, Some(key), x: XGroupRef)          =>
+              complexTypeToParticles(tagged) ::: toParticles(KeyedGroup(key, x))
+            case DataRecord(_, Some(key), x: XExplicitGroupable) =>
+              complexTypeToParticles(tagged) ::: toParticles(KeyedGroup(key, x))
+            case _ => complexTypeToParticles(tagged)
+          } getOrElse { complexTypeToParticles(tagged) }
+
+        // extension of anyType.
+        case _ =>
+          extension.arg1 map {
+            // XTypeDefParticleOption is either XGroupRef or XExplicitGroupable
+            case DataRecord(_, Some(key), x: XGroupRef)          => toParticles(KeyedGroup(key, x))
+            case DataRecord(_, Some(key), x: XExplicitGroupable) => toParticles(KeyedGroup(key, x))
+            case _ => Nil
           } getOrElse {Nil}
-        }
-      }
+      } // base match
+    } // processExtension
 
     decl.value.arg1.value match {
       case XComplexContent(_, DataRecord(_, _, x: XComplexRestrictionType), _, _, _) => processRestriction(x)
