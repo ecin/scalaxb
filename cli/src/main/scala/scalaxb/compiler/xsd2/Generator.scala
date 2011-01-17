@@ -34,6 +34,7 @@ class Generator(val schema: ReferenceSchema, val logger: Logger,
       (schema.unbound flatMap {
         case Tagged(x, tag) => x match {
           case decl: XComplexType => processComplexType(Tagged(decl, tag))
+          case decl: XSimpleType if containsEnumeration(decl)(tag) => processSimpleType(Tagged(decl, tag))
           case _ => Nil
         }}).toList: _*)
 
@@ -47,6 +48,21 @@ class Generator(val schema: ReferenceSchema, val logger: Logger,
 
     Snippet(<source>case class { localName }({
       paramList.map(_.toScalaCode).mkString(", " + NL + indent(1))})</source>)
+  }
+
+  def processSimpleType(decl: Tagged[XSimpleType]): List[Snippet] =
+    List(generateSimpleType(buildTypeName(decl), decl))
+
+  def generateSimpleType(name: QualifiedName, decl: Tagged[XSimpleType]) = {
+    val localName = name.localPart
+    val enumValues = filterEnumeration(decl) map { enum =>
+      val name = buildTypeName(enum)
+      """case object %s extends %s { override def toString = "%s" }""".format(
+        name.localPart, localName, enum.value.value)
+    }
+
+    Snippet(<source>trait { localName }
+{ enumValues.mkString(NL) }</source>)
   }
 
   def headerSnippet: Snippet =

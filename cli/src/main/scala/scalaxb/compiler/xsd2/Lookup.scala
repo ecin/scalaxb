@@ -42,6 +42,9 @@ trait Lookup extends ContextProcessor {
       QualifiedName(tagged.tag.namespace, names.get(Tagged(decl, tagged.tag)) getOrElse {"??"})
     case decl: XComplexType              =>
       QualifiedName(tagged.tag.namespace, names.get(Tagged(decl, tagged.tag)) getOrElse {"??"})
+    case enum: XNoFixedFacet             =>
+      QualifiedName(tagged.tag.namespace, names.get(Tagged(enum, tagged.tag)) getOrElse {"??"})
+
 //
 //    case XsNillableAny  => "scalaxb.DataRecord[Option[Any]]"
 //    case XsLongAll      => "Map[String, scalaxb.DataRecord[Any]]"

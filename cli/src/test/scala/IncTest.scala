@@ -36,6 +36,16 @@ object IncTest extends SpecBase {
 
     } // complexType
 
+    "include top-level simple type with enumeration" >> {
+      "as trait" >> {
+        entitySource must include("trait USState")
+      }
+
+      "each enumerations represented as case object" >> {
+        entitySource must include("case object AK")
+      }
+    }
+
     "include top-level element as a case class" >> {
       entitySource must include("case class TopLevelElement(")
     }

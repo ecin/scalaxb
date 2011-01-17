@@ -3,6 +3,7 @@ package scalaxb.compiler.xsd2
 import scalaxb.compiler.{ScalaNames, Logger, Config, ReferenceNotFound}
 import xmlschema._
 import Defs._
+import scalaxb._
 
 trait ContextProcessor extends ScalaNames {
   def logger: Logger
@@ -34,21 +35,47 @@ trait ContextProcessor extends ScalaNames {
 
   }
 
+  def containsEnumeration(decl: XSimpleType)(implicit tag: HostTag): Boolean =
+    !filterEnumeration(decl).isEmpty
+
+  def filterEnumeration(tagged: Tagged[XSimpleType]): Seq[Tagged[XNoFixedFacet]] =
+    filterEnumeration(tagged.value)(tagged.tag)
+
+  def filterEnumeration(decl: XSimpleType)(implicit tag: HostTag): Seq[Tagged[XNoFixedFacet]] =
+    decl.arg1.value match {
+      case restriction: XRestriction =>
+        restriction.arg1.arg2 collect {
+          case DataRecord(_, Some("enumeration"), enum: XNoFixedFacet) => Tagged(enum, tag)
+        }
+      case _ => Nil
+    }
+
   def nameTypes(elem: XElement)(implicit tag: HostTag) {
     elem.xelementoption map {_.value match {
       case x: XLocalComplexType =>
         names(Tagged(x, tag)) = makeProtectedTypeName(elem)
-      case x: XLocalSimpleType  =>
+      case x: XLocalSimpleType if (containsEnumeration(x)) =>
+        names(Tagged(x, tag)) = makeProtectedTypeName(elem)
+        nameEnumValues(x)
+      case _ =>
     }}
   }
 
   def nameTypes(decl: XSimpleType)(implicit tag: HostTag) {
-
-
+    if (containsEnumeration(decl)) {
+      names(Tagged(decl, tag)) = makeProtectedTypeName(decl)
+      nameEnumValues(decl)
+    }
   }
 
   def nameTypes(decl: XComplexType)(implicit tag: HostTag) {
     names(Tagged(decl, tag)) = makeProtectedTypeName(decl)
+  }
+
+  def nameEnumValues(decl: XSimpleType)(implicit tag: HostTag) {
+    filterEnumeration(decl) map { enum =>
+      names(enum) = makeProtectedTypeName(enum.value)
+    }
   }
 
   def makeProtectedTypeName(elem: XElement)(implicit tag: HostTag): String =
@@ -56,6 +83,12 @@ trait ContextProcessor extends ScalaNames {
 
   def makeProtectedTypeName(decl: XComplexType)(implicit tag: HostTag): String =
     makeProtectedTypeName(decl.name, "Type")
+
+  def makeProtectedTypeName(decl: XSimpleType)(implicit tag: HostTag): String =
+    makeProtectedTypeName(decl.name, "Type")
+
+  def makeProtectedTypeName(enum: XNoFixedFacet)(implicit tag: HostTag): String =
+    makeProtectedTypeName(enum.value, "Value")
 
   def makeProtectedTypeName(initialName: Option[String], postfix: String)(implicit tag: HostTag): String =
     makeProtectedTypeName(initialName getOrElse {error("name is required.")}, postfix)
