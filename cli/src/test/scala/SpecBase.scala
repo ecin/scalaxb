@@ -383,6 +383,13 @@ trait SpecBase extends Specification {
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
+      <xs:element name="milklist1" type="gen:ListOfMilk"/>
+      <xs:element name="union">
+        <xs:simpleType>
+          <xs:union memberTypes="xs:string xs:int" />
+        </xs:simpleType>
+      </xs:element>
+
     </xs:sequence>
   </xs:complexType>
 

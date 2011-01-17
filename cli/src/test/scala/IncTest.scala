@@ -28,7 +28,7 @@ object IncTest extends SpecBase {
     }
 
     "each enumerations represented as case object" >> {
-      entitySource must include("case object WHOLE")
+      entitySource must include("case object SKIM")
     }
   } // enumeration
 
@@ -60,7 +60,9 @@ object IncTest extends SpecBase {
         |\s*milk2: MilkType,\s*
         |\s*quantity: BigInt,\s*
         |\s*comment: String,\s*
-        |\s*comment2: String\)""".stripMargin
+        |\s*comment2: String,\s*
+        |\s*milklist1: Seq\[MilkType\],\s*
+        |\s*union: String\)""".stripMargin
 
     "map simple type with enumeration to the corresponding trait" >> {
       entitySource must find(expectedSimpleTypeTest)
@@ -79,6 +81,14 @@ object IncTest extends SpecBase {
     }
 
     "map simple type restriction of an ad-hoc simple type to its base" >> {
+      entitySource must find(expectedSimpleTypeTest)
+    }
+
+    "map list of a simple type as Seq" >> {
+      entitySource must find(expectedSimpleTypeTest)
+    }
+
+    "map union of simple types as String" >> {
       entitySource must find(expectedSimpleTypeTest)
     }
   } // generated case classes

@@ -76,15 +76,12 @@ trait Lookup extends ContextProcessor {
         QualifiedName(base.tag.namespace, names.get(base) getOrElse {"??"})
       case restriction: XRestriction =>
         buildTypeName(baseType(decl))
-      case list: XList if containsEnumeration(decl) =>
-        QualifiedName(None, "Seq[%s]".format(QualifiedName(tag.namespace, names(decl)).toScalaCode))
       case list: XList =>
         val base = baseType(decl)
         val baseName = base.value match {
           case symbol: BuiltInSimpleTypeSymbol => symbol.name
           case decl: XSimpleType               => names.get(base) getOrElse {"??"}
         }
-
         QualifiedName(None, "Seq[%s]".format(QualifiedName(base.tag.namespace, baseName).toScalaCode))
       // union baseType is hardcoded to xs:string.
       case union: XUnion =>
