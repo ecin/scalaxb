@@ -22,4 +22,6 @@
 
 package scalaxb.compiler.xsd2
 
-case class SchemaContext()
+import scala.collection.mutable
+
+case class SchemaContext(names: mutable.Map[Tagged[_], String] = mutable.Map.empty[Tagged[_], String])

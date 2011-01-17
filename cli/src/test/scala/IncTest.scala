@@ -34,11 +34,14 @@ object IncTest extends SpecBase {
             |\s*items: Items\)""".stripMargin)
       }
 
-    }
+    } // complexType
 
     "include top-level element as a case class" >> {
       entitySource must include("case class TopLevelElement(")
     }
-  }
 
+    "include inner element as a case class" >> {
+      entitySource must include("case class Item(")
+    }
+  } // entity
 }

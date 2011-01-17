@@ -36,6 +36,7 @@ object Defs {
   val XSI_PREFIX = "xsi"
   val XML_URI = new URI("http://www.w3.org/XML/1998/namespace")
   val XML_PREFIX = "xml"
+  val SCALAXB_URI = new URI("http://scalaxb.org/")
   val NL = System.getProperty("line.separator")
 
   val XS_ANY_TYPE = QualifiedName(XML_SCHEMA_URI, "anyType")
@@ -65,12 +66,8 @@ object HostTag {
 }
 
 case class KeyedGroup(key: String, group: XGroup)
-class Tagged[+A](val value: A, val tag: HostTag) {
-}
-
-object Tagged {
-  def apply[A](value: A, tag: HostTag) = new Tagged(value, tag)
-  def unapply[A](value: Tagged[A]): Option[(A, HostTag)] = Some((value.value, value.tag))
+case class Tagged[+A](val value: A, val tag: HostTag) {
+  override def toString: String = "Tagged(%s, %s)".format(value.toString, tag.toString)
 }
 
 class SchemaOps(val schema: XSchema) extends immutable.LinearSeq[Tagged[Any]] {

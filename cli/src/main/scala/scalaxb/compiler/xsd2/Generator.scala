@@ -26,9 +26,8 @@ import scalaxb.compiler.{Logger, Config, Snippet}
 import xmlschema._
 import Defs._
 
-class Generator(val schema: ReferenceSchema, val logger: Logger, val config: Config) extends Params {
-  def log(msg: String) = logger.log(msg)
-
+class Generator(val schema: ReferenceSchema, val logger: Logger,
+                val context: SchemaContext, val config: Config) extends Params {
   def generateEntitySource: Snippet =
     Snippet(
       headerSnippet ::
@@ -39,10 +38,10 @@ class Generator(val schema: ReferenceSchema, val logger: Logger, val config: Con
         }}).toList: _*)
 
   def processComplexType(decl: Tagged[XComplexType]): List[Snippet] =
-    List(generateComplexTypeEntity(typeName(decl), decl))
+    List(generateComplexTypeEntity(buildTypeName(decl), decl))
 
-  def generateComplexTypeEntity(name: FullName, decl: Tagged[XComplexType]) = {
-    val localName = name.localName
+  def generateComplexTypeEntity(name: QualifiedName, decl: Tagged[XComplexType]) = {
+    val localName = name.localPart
     val list = decl.particles
     val paramList = list map { buildParam }
 

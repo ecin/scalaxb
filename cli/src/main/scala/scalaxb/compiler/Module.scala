@@ -214,6 +214,10 @@ trait Module extends Logger {
       importable
     })
 
+    importables foreach { importable =>
+      processSchema(schemas(importable), context, config)
+    }
+
     processContext(context, config)
     
     importables foreach { importable =>
@@ -292,7 +296,9 @@ trait Module extends Logger {
   }
     
   def buildContext: Context
-  
+
+  def processSchema(schema: Schema, context: Context, config: Config): Unit
+
   def processContext(context: Context, config: Config): Unit
 
   def readerToRawSchema(reader: Reader): RawSchema

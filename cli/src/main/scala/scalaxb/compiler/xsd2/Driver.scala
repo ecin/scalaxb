@@ -39,7 +39,7 @@ class Driver extends Module { driver =>
   type Context = SchemaContext
 
   def generate(schema: Schema, context: Context, config: Config): Snippet =
-    new Generator(schema, driver, config).generateEntitySource
+    new Generator(schema, driver, context, config).generateEntitySource
 
   def generateProtocol(snippet: Snippet,
     context: Context, config: Config): Seq[Node] = Seq(<source/>)
@@ -67,6 +67,13 @@ class Driver extends Module { driver =>
   }
 
   def buildContext: Context = SchemaContext()
+
+  def processSchema(schema: Schema, cntxt: Context, cnfg: Config) =
+    (new ContextProcessor() {
+      val logger = driver
+      val config = cnfg
+      val context = cntxt
+    }).processSchema(schema)
 
   def processContext(context: Context, config: Config) {
     // do nothing.

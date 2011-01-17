@@ -24,11 +24,11 @@ trait Params extends Lookup {
     nillable: Boolean,
     attribute: Boolean) {
 
-    def baseTypeName: String = buildTypeName(typeSymbol)
+    def baseTypeName: QualifiedName = buildTypeName(typeSymbol)
 
     def singleTypeName: String =
-      if (nillable) "Option[" + baseTypeName + "]"
-      else baseTypeName
+      if (nillable) "Option[" + baseTypeName.toScalaCode + "]"
+      else baseTypeName.toScalaCode
 
     def typeName: String = cardinality match {
       case Single   => singleTypeName
