@@ -69,6 +69,11 @@ case class KeyedGroup(key: String, group: XGroup)
 case class Tagged[+A](val value: A, val tag: HostTag) {
   override def toString: String = "Tagged(%s, %s)".format(value.toString, tag.toString)
 }
+object Tagged {
+  implicit def box[A](value: A)(implicit tag: HostTag): Tagged[A] = Tagged[A](value, tag)
+  implicit def unbox[A](tagged: Tagged[A]): A = tagged.value
+}
+
 
 class SchemaOps(val schema: XSchema) extends immutable.LinearSeq[Tagged[Any]] {
   lazy val length: Int = list.length

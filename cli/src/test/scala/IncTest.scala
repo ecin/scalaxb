@@ -21,33 +21,28 @@ object IncTest extends SpecBase {
 
       "xs:string parameters map as String" >> {
         entitySource must find(
-          """case class Address\(name: String,\s*
-            |\s*street: String,\s*
+          """case class Address\(street: String,\s*
             |\s*city: String\)""".stripMargin)
       }
 
       "complex type parameters map to corresponding class or trait" >> {
-        entitySource must find(
-          """case class PurchaseOrderType\(shipTo: Address,\s*
-            |\s*billTo: Address,\s*
-            |\s*comment: String,\s*
-            |\s*items: Items\)""".stripMargin)
+        entitySource must include("case class SingularComplexTypeTest(person1: Person")
       }
 
     } // complexType
 
     "include top-level simple type with enumeration" >> {
       "as trait" >> {
-        entitySource must include("trait USState")
+        entitySource must include("trait MilkType")
       }
 
       "each enumerations represented as case object" >> {
-        entitySource must include("case object AK")
+        entitySource must include("case object WHOLE")
       }
     }
 
     "include top-level element as a case class" >> {
-      entitySource must include("case class TopLevelElement(")
+      entitySource must include("case class TopLevelElementTest(")
     }
 
     "include inner element as a case class" >> {

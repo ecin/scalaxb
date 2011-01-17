@@ -4,8 +4,8 @@ import java.net.{URI}
 import javax.xml.namespace.{QName}
 import xmlschema._
 import scalaxb.compiler.{ScalaNames, Logger, Config, Snippet, ReferenceNotFound}
+import scalaxb.compiler.xsd.{XsAny, XsString, BuiltInSimpleTypeSymbol, XsTypeSymbol}
 import Defs._
-import scalaxb.compiler.xsd.{XsAny, XsInt, XsTypeSymbol, BuiltInSimpleTypeSymbol}
 import scala.xml.{NamespaceBinding}
 
 case class QualifiedName(namespace: Option[URI], localPart: String) {
@@ -35,41 +35,80 @@ trait Lookup extends ContextProcessor {
   implicit def scope: NamespaceBinding = schema.scope
   implicit def targetNamespace = schema.targetNamespace
 
-  def buildTypeName(tagged: Tagged[Any]): QualifiedName = tagged.value match {
-    case XsAny                           => QualifiedName(Some(SCALAXB_URI), "DataRecord[Any]")
-    case symbol: BuiltInSimpleTypeSymbol => QualifiedName(None, symbol.name)
-    case decl: XSimpleType               =>
-      QualifiedName(tagged.tag.namespace, names.get(Tagged(decl, tagged.tag)) getOrElse {"??"})
-    case decl: XComplexType              =>
-      QualifiedName(tagged.tag.namespace, names.get(Tagged(decl, tagged.tag)) getOrElse {"??"})
-    case enum: XNoFixedFacet             =>
-      QualifiedName(tagged.tag.namespace, names.get(Tagged(enum, tagged.tag)) getOrElse {"??"})
+  def buildTypeName(tagged: Tagged[Any]): QualifiedName = {
+    implicit val tag = tagged.tag
 
-//
-//    case XsNillableAny  => "scalaxb.DataRecord[Option[Any]]"
-//    case XsLongAll      => "Map[String, scalaxb.DataRecord[Any]]"
-//    case XsLongAttribute => "Map[String, scalaxb.DataRecord[Any]]"
-//    case XsAnyAttribute  => "Map[String, scalaxb.DataRecord[Any]]"
-//    case XsDataRecord(ReferenceTypeSymbol(decl: ComplexTypeDecl)) if compositorWrapper.contains(decl) =>
-//      compositorWrapper(decl) match {
-//        case choice: ChoiceDecl => buildChoiceTypeName(decl, choice, shortLocal)
-//        case _ => "scalaxb.DataRecord[Any]"
-//      }
-//    case r: XsDataRecord => "scalaxb.DataRecord[Any]"
-//    case XsMixed         => "scalaxb.DataRecord[Any]"
-//    case ReferenceTypeSymbol(decl: SimpleTypeDecl) => buildTypeName(decl, shortLocal)
-//    case ReferenceTypeSymbol(decl: ComplexTypeDecl) => buildTypeName(decl, shortLocal)
-//    case symbol: AttributeGroupSymbol => buildTypeName(attributeGroups(symbol.namespace, symbol.name), shortLocal)
-//    case XsXMLFormat(decl: ComplexTypeDecl) => "scalaxb.XMLFormat[" + buildTypeName(decl, shortLocal) + "]"
-//    case XsXMLFormat(group: AttributeGroupDecl) => "scalaxb.XMLFormat[" + buildTypeName(group, shortLocal) + "]"
-    case _ => QualifiedName(None, "??")
+    tagged.value match {
+      case XsAny                           => QualifiedName(Some(SCALAXB_URI), "DataRecord[Any]")
+      case symbol: BuiltInSimpleTypeSymbol => QualifiedName(None, symbol.name)
+      case decl: XSimpleType               => buildSimpleTypeTypeName(decl)
+      case decl: XComplexType              =>
+        QualifiedName(tagged.tag.namespace, names.get(decl) getOrElse {"??"})
+      case enum: XNoFixedFacet             =>
+        QualifiedName(tagged.tag.namespace, names.get(enum) getOrElse {"??"})
+
+  //
+  //    case XsNillableAny  => "scalaxb.DataRecord[Option[Any]]"
+  //    case XsLongAll      => "Map[String, scalaxb.DataRecord[Any]]"
+  //    case XsLongAttribute => "Map[String, scalaxb.DataRecord[Any]]"
+  //    case XsAnyAttribute  => "Map[String, scalaxb.DataRecord[Any]]"
+  //    case XsDataRecord(ReferenceTypeSymbol(decl: ComplexTypeDecl)) if compositorWrapper.contains(decl) =>
+  //      compositorWrapper(decl) match {
+  //        case choice: ChoiceDecl => buildChoiceTypeName(decl, choice, shortLocal)
+  //        case _ => "scalaxb.DataRecord[Any]"
+  //      }
+  //    case r: XsDataRecord => "scalaxb.DataRecord[Any]"
+  //    case XsMixed         => "scalaxb.DataRecord[Any]"
+  //    case ReferenceTypeSymbol(decl: SimpleTypeDecl) => buildTypeName(decl, shortLocal)
+  //    case ReferenceTypeSymbol(decl: ComplexTypeDecl) => buildTypeName(decl, shortLocal)
+  //    case symbol: AttributeGroupSymbol => buildTypeName(attributeGroups(symbol.namespace, symbol.name), shortLocal)
+  //    case XsXMLFormat(decl: ComplexTypeDecl) => "scalaxb.XMLFormat[" + buildTypeName(decl, shortLocal) + "]"
+  //    case XsXMLFormat(group: AttributeGroupDecl) => "scalaxb.XMLFormat[" + buildTypeName(group, shortLocal) + "]"
+      case _ => QualifiedName(None, "??")
+    }
   }
 
-//  def typeName(decl: Tagged[XSimpleType]): QualifiedName =
-//
-//
-//  def typeName(decl: Tagged[XComplexType]): QualifiedName =
-//    QualifiedName(decl.tag.namespace, names.get(decl) getOrElse {"??"})
+  def buildSimpleTypeTypeName(decl: XSimpleType)(implicit tag: HostTag): QualifiedName = {
+    decl.arg1.value match {
+      case restriction: XRestriction if containsEnumeration(decl) =>
+        QualifiedName(tag.namespace, names.get(decl) getOrElse {"??"})
+      case restriction: XRestriction =>
+        buildTypeName(baseType(decl))
+      case list: XList if containsEnumeration(decl) =>
+        QualifiedName(None, "Seq[%s]".format(QualifiedName(tag.namespace, names(decl)).toScalaCode))
+      case list: XList =>
+        val base = baseType(decl)
+        QualifiedName(None, "Seq[%s]".format(QualifiedName(base.tag.namespace, base.value.name).toScalaCode))
+
+//    case SimpTypListDecl(ReferenceTypeSymbol(itemType: SimpleTypeDecl)) if containsEnumeration(itemType) =>
+//      "Seq[" + buildEnumTypeName(itemType, shortLocal) + "]"
+//    case x: SimpTypListDecl => "Seq[" + buildTypeName(baseType(decl), shortLocal) + "]"
+//    case x: SimpTypUnionDecl => buildTypeName(baseType(decl), shortLocal)
+    }
+
+
+
+
+  }
+
+  def baseType(decl: XSimpleType)(implicit tag: HostTag): Tagged[XsTypeSymbol] = decl.arg1.value match {
+    case XRestriction(_, _, _, Some(base), _) =>
+      QualifiedName.fromQName(base) match {
+        case BuiltInType(tagged) => tagged
+        case SimpleType(tagged)  => baseType(tagged.value)
+      }
+    case XRestriction(_, XSimpleRestrictionModelSequence(Some(simpleType), _), _, _, _) =>
+      baseType(simpleType)
+    case XList(_, _, _, Some(itemType), _) =>
+      QualifiedName.fromQName(itemType) match {
+        case BuiltInType(tagged) => tagged
+        case SimpleType(tagged)  => baseType(tagged.value)
+      }
+    case XList(_, Some(simpleType), _, _, _) =>
+      baseType(simpleType)
+    case x: XUnion => Tagged(XsString, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, "string"))
+    case _ => error("GenSource: Unsupported content " +  decl.arg1.value.toString)
+  }
 
   def resolveType(typeName: QualifiedName): Tagged[Any] = typeName match {
     case AnyType(tagged)     => tagged
@@ -81,15 +120,15 @@ trait Lookup extends ContextProcessor {
 
   object AnyType {
     def unapply(typeName: QualifiedName): Option[Tagged[XsTypeSymbol]] = typeName match {
-      case XS_ANY_TYPE => Some(Tagged(XsAny, HostTag(Some(XML_URI), SimpleTypeHost, "anyType")))
+      case XS_ANY_TYPE => Some(Tagged(XsAny, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, "anyType")))
       case _ => None
     }
   }
 
   object BuiltInType {
     def unapply(typeName: QualifiedName): Option[Tagged[XsTypeSymbol]] = typeName match {
-      case QualifiedName(Some(XML_SCHEMA_URI), localPart) => Some(Tagged(XsTypeSymbol.toTypeSymbol(localPart),
-        HostTag(typeName.namespace, SimpleTypeHost, localPart)))
+      case QualifiedName(Some(XML_SCHEMA_URI), localPart) =>
+        Some(Tagged(XsTypeSymbol.toTypeSymbol(localPart), HostTag(typeName.namespace, SimpleTypeHost, localPart)))
       case _ => None
     }
   }
