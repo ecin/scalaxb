@@ -44,7 +44,7 @@ class Generator(val schema: ReferenceSchema, val logger: Logger,
   def generateComplexTypeEntity(name: QualifiedName, decl: Tagged[XComplexType]) = {
     val localName = name.localPart
     val list = decl.particles
-    val paramList = list map { buildParam }
+    val paramList = Param.fromList(list)
 
     Snippet(<source>case class { localName }({
       paramList.map(_.toScalaCode).mkString(", " + NL + indent(1))})</source>)

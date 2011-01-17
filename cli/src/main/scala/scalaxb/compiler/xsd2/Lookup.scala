@@ -9,7 +9,9 @@ import Defs._
 import scala.xml.{NamespaceBinding}
 
 case class QualifiedName(namespace: Option[URI], localPart: String) {
-  def toScalaCode: String = localPart
+  def toScalaCode(implicit targetNamespace: Option[URI], lookup: Lookup): String =
+    if (namespace == targetNamespace || namespace.isEmpty) localPart
+    else lookup.packageName(namespace) + "." + localPart
 }
 
 object QualifiedName {
@@ -40,13 +42,15 @@ trait Lookup extends ContextProcessor {
 
     tagged.value match {
       case XsAny                           => QualifiedName(Some(SCALAXB_URI), "DataRecord[Any]")
+      case any: XAny                       => QualifiedName(Some(SCALAXB_URI), "DataRecord[Any]")
       case symbol: BuiltInSimpleTypeSymbol => QualifiedName(None, symbol.name)
       case decl: XSimpleType               => buildSimpleTypeTypeName(decl)
       case decl: XComplexType              =>
         QualifiedName(tagged.tag.namespace, names.get(decl) getOrElse {"??"})
       case enum: XNoFixedFacet             =>
         QualifiedName(tagged.tag.namespace, names.get(enum) getOrElse {"??"})
-
+      case keyedGroup: KeyedGroup          =>
+        QualifiedName(tagged.tag.namespace, keyedGroup.key)
   //
   //    case XsNillableAny  => "scalaxb.DataRecord[Option[Any]]"
   //    case XsLongAll      => "Map[String, scalaxb.DataRecord[Any]]"
@@ -64,7 +68,7 @@ trait Lookup extends ContextProcessor {
   //    case symbol: AttributeGroupSymbol => buildTypeName(attributeGroups(symbol.namespace, symbol.name), shortLocal)
   //    case XsXMLFormat(decl: ComplexTypeDecl) => "scalaxb.XMLFormat[" + buildTypeName(decl, shortLocal) + "]"
   //    case XsXMLFormat(group: AttributeGroupDecl) => "scalaxb.XMLFormat[" + buildTypeName(group, shortLocal) + "]"
-      case _ => QualifiedName(None, "??")
+      case _ => error("buildTypeName # unsupported: " + tagged)
     }
   }
 
@@ -172,4 +176,9 @@ trait Lookup extends ContextProcessor {
   def max(lhs: String, rhs: String): String =
     if (lhs == "unbounded" || rhs == "unbounded") "unbounded"
     else math.max(lhs.toInt, rhs.toInt).toString
+
+  def packageName(namespace: Option[URI]): String =
+    namespace map { ns =>
+      if (ns == SCALAXB_URI) "scalaxb"
+      else "packagename" } getOrElse { "packagename" }
 }

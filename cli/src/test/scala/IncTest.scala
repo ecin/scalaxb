@@ -119,5 +119,24 @@ object IncTest extends SpecBase {
     "map nillable maxOccurs >1 complex type param to Seq[Option[A]]" >> {
       entitySource must find(expectedComplexTypeTest)
     }
+
+    val exptectedAnyTest =
+      """case class AnyTest\(any: Option\[scalaxb\.DataRecord\[Any\]\],\s*
+        |\s*foo: String,\s*
+        |\s*any2: scalaxb\.DataRecord\[Any\],\s*
+        |\s*foo2: String,\s*
+        |\s*any3: Seq\[scalaxb\.DataRecord\[Any\]\]\)""".stripMargin
+
+    "map wildcard param to DataRecord[Any]" >> {
+      entitySource must find(exptectedAnyTest)
+    }
+
+    "map optional wildcard param to Option[DataRecord[A]]" >> {
+      entitySource must find(exptectedAnyTest)
+    }
+
+    "map maxOccurs >1 wildcard param to Seq[DataRecord[A]]" >> {
+      entitySource must find(exptectedAnyTest)
+    }
   } // generated case classes
 }

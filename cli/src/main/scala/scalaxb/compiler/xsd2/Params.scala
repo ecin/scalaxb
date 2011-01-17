@@ -14,8 +14,11 @@ trait Params extends Lookup {
         else maxOccurs.toInt,
         nillable)
 
-    def apply(tagged: Tagged[XElement]): Occurrence =
-      Occurrence(tagged.value.minOccurs, tagged.value.maxOccurs, tagged.value.nillable)
+    def apply(elem: XElement): Occurrence =
+      Occurrence(elem.minOccurs, elem.maxOccurs, elem.nillable)
+
+    def apply(any: XAny): Occurrence =
+      Occurrence(any.minOccurs, any.maxOccurs, false)
   }
 
   val SingleNotNillable = Occurrence(1, 1, false)
@@ -33,7 +36,7 @@ trait Params extends Lookup {
 
     def baseTypeName: QualifiedName = buildTypeName(typeSymbol)
 
-    def typeName: String = occurrence match {
+    def typeName(implicit targetNamespace: Option[URI]): String = occurrence match {
       case SingleNotNillable   => baseTypeName.toScalaCode
       case SingleNillable      => "Option[%s]".format(baseTypeName.toScalaCode)
       case OptionalNotNillable => "Option[%s]".format(baseTypeName.toScalaCode)
@@ -46,45 +49,60 @@ trait Params extends Lookup {
     def toTraitScalaCode: String =
       makeParamName(name) + ": " + typeName
 
-    def toScalaCode: String =
+    def toScalaCode(implicit targetNamespace: Option[URI]): String =
       toTraitScalaCode + (
         if (occurrence == OptionalNotNillable && attribute) " = None"
         else "")
   }
 
-  // tagged can be Tagged[XSimpleType], Tagged[BuiltInSymbol], Tagged[XElement], Tagged[KeyedGroup],
-  // Tagged[XAny].
-  def buildParam(tagged: Tagged[Any]) = tagged.value match {
-    case decl: XSimpleType               => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
-    case symbol: BuiltInSimpleTypeSymbol => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
-    case elem: XElement                  => buildElementParam(Tagged(elem, tagged.tag))
-    case group: KeyedGroup               => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
-    case any: XAny                       => Param(tagged.tag.namespace, "any", tagged, SingleNotNillable, false)
-    case _ => error("buildParam: " + tagged)
-  }
+  object Param {
+    def fromList(particles: List[Tagged[Any]]): List[Param] = {
+      var anyNumber: Int = -1
+      particles map { tagged => tagged.value match {
+        case any: XAny =>
+          anyNumber += 1
+          buildParam(tagged, anyNumber)
+        case _         => buildParam(tagged, 0)
+      }}
+    }
 
-  def buildElementParam(tagged: Tagged[XElement]): Param = {
-    val elem = tagged.value
-    val name = elem.name.getOrElse(elem.ref map {_.toString} getOrElse {"??"})
-    val occurrence = Occurrence(tagged)
-    val retval = Param(tagged.tag.namespace, name, elementType(tagged), occurrence, false)
-    log("Params#buildElementParam:  " + retval.toString)
-    retval
-  }
+    // tagged can be Tagged[XSimpleType], Tagged[BuiltInSymbol], Tagged[XElement], Tagged[KeyedGroup],
+    // Tagged[XAny].
+    private def buildParam(tagged: Tagged[Any], anyNumber: Int) = tagged.value match {
+      case decl: XSimpleType               => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+      case symbol: BuiltInSimpleTypeSymbol => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+      case elem: XElement                  => buildElementParam(Tagged(elem, tagged.tag))
+      case group: KeyedGroup               => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+      case any: XAny                       => buildAnyParam(Tagged(any, tagged.tag), anyNumber)
+      case _ => error("buildParam: " + tagged)
+    }
 
-  def elementType(tagged: Tagged[XElement]) = {
-    val elem = tagged.value
+    private def buildElementParam(tagged: Tagged[XElement]): Param = {
+      val elem = tagged.value
+      val name = elem.name.getOrElse(elem.ref map {_.toString} getOrElse {"??"})
+      val typesymbol = elem.name map { _ =>
+        elem.typeValue map { typeValue =>
+          resolveType(typeValue)
+        } getOrElse {
+          elem.xelementoption map { _.value match {
+            case x: XLocalComplexType => Tagged(x, tagged.tag)
+            case x: XLocalSimpleType  => Tagged(x, tagged.tag)
+          }} getOrElse {error("type not found for element: " + tagged.value.toString)}
+        }
+      } getOrElse { Tagged(XsInt, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, "int")) }
 
-    elem.name map { _ =>
-      elem.typeValue map { typeValue =>
-        resolveType(typeValue)
-      } getOrElse {
-        elem.xelementoption map { _.value match {
-          case x: XLocalComplexType => Tagged(x, tagged.tag)
-          case x: XLocalSimpleType  => Tagged(x, tagged.tag)
-        }} getOrElse {error("type not found for element: " + tagged.value.toString)}
-      }
-    } getOrElse {
-      Tagged(XsInt, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, "int")) }
-  }
+      val retval = Param(tagged.tag.namespace, name, typesymbol, Occurrence(elem), false)
+      log("Params#buildElementParam:  " + retval.toString)
+      retval
+    }
+
+    private def buildAnyParam(tagged: Tagged[XAny], anyNumber: Int): Param = {
+      val any = tagged.value
+      val name = if (anyNumber == 0) "any"
+        else "any" + (anyNumber + 1)
+      val retval = Param(tagged.tag.namespace, name, tagged, Occurrence(any), false)
+      log("Params#buildAnyParam:  " + retval.toString)
+      retval
+    }
+  } // object Param
 }

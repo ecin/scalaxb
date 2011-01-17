@@ -260,6 +260,12 @@ object ComplexTypeOps {
   /** particles of the given decl flattened one level.
    * returns list of Tagged[XSimpleType], Tagged[BuiltInSimpleTypeSymbol], Tagged[XElement], Tagged[KeyedGroup],
    * Tagged[XAny].
+   * <ul><li>local elements return <code>Tagged[XElement]</code></li>
+   * <li>group references return <code>Tagged[KeyedGroup]</code></li>
+   * <li>compositors also return <code>Tagged[KeyedGroup]</code></li>
+   * <li>xs:any return <code>Tagged[XAny]</code></li>
+   * <li>if the base is a builtin type, it will always return <code>Tagged[BuiltInSimpleTypeSymbol]</code></li>
+   * <li>if the base is a simple type, it will always return <code>Tagged[XSimpleType]</code></li>
    */
   def complexTypeToParticles(decl: Tagged[XComplexType])
     (implicit lookup: Lookup, targetNamespace: Option[URI], scope: NamespaceBinding): List[Tagged[Any]] = {
