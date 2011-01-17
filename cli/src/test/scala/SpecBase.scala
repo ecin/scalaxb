@@ -341,6 +341,18 @@ trait SpecBase extends Specification {
     </xs:sequence>
   </xs:complexType>
 
+  <xs:complexType name="SimpleTypeTest">
+    <xs:sequence>
+      <xs:element name="quantity">
+        <xs:simpleType>
+          <xs:restriction base="xs:positiveInteger">
+            <xs:maxExclusive value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
   <xs:attributeGroup name="coreattrs">
     <xs:annotation>
       <xs:documentation>

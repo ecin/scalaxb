@@ -78,20 +78,21 @@ trait Lookup extends ContextProcessor {
         QualifiedName(None, "Seq[%s]".format(QualifiedName(tag.namespace, names(decl)).toScalaCode))
       case list: XList =>
         val base = baseType(decl)
-        QualifiedName(None, "Seq[%s]".format(QualifiedName(base.tag.namespace, base.value.name).toScalaCode))
+        val baseName = base.value match {
+          case symbol: BuiltInSimpleTypeSymbol => symbol.name
+          case decl: XSimpleType               => names.get(base) getOrElse {"??"}
+        }
 
-//    case SimpTypListDecl(ReferenceTypeSymbol(itemType: SimpleTypeDecl)) if containsEnumeration(itemType) =>
-//      "Seq[" + buildEnumTypeName(itemType, shortLocal) + "]"
-//    case x: SimpTypListDecl => "Seq[" + buildTypeName(baseType(decl), shortLocal) + "]"
-//    case x: SimpTypUnionDecl => buildTypeName(baseType(decl), shortLocal)
+        QualifiedName(None, "Seq[%s]".format(QualifiedName(base.tag.namespace, baseName).toScalaCode))
+      // union baseType is hardcoded to xs:string.
+      case union: XUnion =>
+        buildTypeName(baseType(decl))
     }
-
-
-
-
   }
 
-  def baseType(decl: XSimpleType)(implicit tag: HostTag): Tagged[XsTypeSymbol] = decl.arg1.value match {
+  def baseType(decl: XSimpleType)(implicit tag: HostTag): Tagged[Any] = decl.arg1.value match {
+    case restriction: XRestriction if containsEnumeration(decl) =>
+      decl
     case XRestriction(_, _, _, Some(base), _) =>
       QualifiedName.fromQName(base) match {
         case BuiltInType(tagged) => tagged
@@ -107,7 +108,7 @@ trait Lookup extends ContextProcessor {
     case XList(_, Some(simpleType), _, _, _) =>
       baseType(simpleType)
     case x: XUnion => Tagged(XsString, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, "string"))
-    case _ => error("GenSource: Unsupported content " +  decl.arg1.value.toString)
+    case _ => error("baseType#: Unsupported content " +  decl.arg1.value.toString)
   }
 
   def resolveType(typeName: QualifiedName): Tagged[Any] = typeName match {
