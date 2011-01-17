@@ -6,34 +6,41 @@ import Defs._
 import java.net.URI
 
 trait Params extends Lookup {
+  case class Occurrence(minOccurs: Int, maxOccurs: Int, nillable: Boolean)
+  object Occurrence {
+    def apply(minOccurs: Int, maxOccurs: String, nillable: Boolean): Occurrence =
+      Occurrence(minOccurs,
+        if (maxOccurs == "unbounded") Int.MaxValue
+        else maxOccurs.toInt,
+        nillable)
 
-  abstract class Cardinality
-  case object Optional extends Cardinality { override def toString: String = "Optional" }
-  case object Single extends Cardinality { override def toString: String = "Single" }
-  case object Multiple extends Cardinality { override def toString: String = "Multiple" }
+    def apply(tagged: Tagged[XElement]): Occurrence =
+      Occurrence(tagged.value.minOccurs, tagged.value.maxOccurs, tagged.value.nillable)
+  }
 
-  def toCardinality(minOccurs: Int, maxOccurs: Int): Cardinality =
-    if (maxOccurs > 1) Multiple
-    else if (minOccurs == 0) Optional
-    else Single
+  val SingleNotNillable = Occurrence(1, 1, false)
+  val SingleNillable = Occurrence(1, 1, true)
+  val OptionalNotNillable = Occurrence(0, 1, false)
+  val OptionalNillable = Occurrence(0, 1, true)
+  val UnboundedNotNillable = Occurrence(0, Int.MaxValue, false)
+  val UnboundedNillable = Occurrence(0, Int.MaxValue, true)
 
   case class Param(namespace: Option[URI],
     name: String,
     typeSymbol: Tagged[Any],
-    cardinality: Cardinality,
-    nillable: Boolean,
+    occurrence: Occurrence,
     attribute: Boolean) {
 
     def baseTypeName: QualifiedName = buildTypeName(typeSymbol)
 
-    def singleTypeName: String =
-      if (nillable) "Option[" + baseTypeName.toScalaCode + "]"
-      else baseTypeName.toScalaCode
-
-    def typeName: String = cardinality match {
-      case Single   => singleTypeName
-      case Optional => "Option[" + singleTypeName + "]"
-      case Multiple => "Seq[" + singleTypeName + "]"
+    def typeName: String = occurrence match {
+      case SingleNotNillable   => baseTypeName.toScalaCode
+      case SingleNillable      => "Option[%s]".format(baseTypeName.toScalaCode)
+      case OptionalNotNillable => "Option[%s]".format(baseTypeName.toScalaCode)
+      case OptionalNillable    => "Option[Option[%s]]".format(baseTypeName.toScalaCode)
+      case _ =>
+        if (!occurrence.nillable) "Seq[%s]".format(baseTypeName.toScalaCode)
+        else "Seq[Option[%s]]".format(baseTypeName.toScalaCode)
     }
 
     def toTraitScalaCode: String =
@@ -41,21 +48,28 @@ trait Params extends Lookup {
 
     def toScalaCode: String =
       toTraitScalaCode + (
-        if (cardinality == Optional && attribute) " = None"
+        if (occurrence == OptionalNotNillable && attribute) " = None"
         else "")
   }
 
   // tagged can be Tagged[XSimpleType], Tagged[BuiltInSymbol], Tagged[XElement], Tagged[KeyedGroup],
   // Tagged[XAny].
   def buildParam(tagged: Tagged[Any]) = tagged.value match {
-    case decl: XSimpleType               => Param(tagged.tag.namespace, tagged.tag.name, tagged, Single,
-                                              false, false)
-    case symbol: BuiltInSimpleTypeSymbol => Param(tagged.tag.namespace, tagged.tag.name, tagged, Single, false, false)
-    case elem: XElement                  => Param(tagged.tag.namespace, elem.name.getOrElse(elem.ref map {_.toString} getOrElse {""}),
-      elementType(Tagged(elem, tagged.tag)), Single, false, false)
-    case group: KeyedGroup               => Param(tagged.tag.namespace, tagged.tag.name, tagged, Single, false, false)
-    case any: XAny                       => Param(tagged.tag.namespace, "any", tagged, Single, false, false)
+    case decl: XSimpleType               => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+    case symbol: BuiltInSimpleTypeSymbol => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+    case elem: XElement                  => buildElementParam(Tagged(elem, tagged.tag))
+    case group: KeyedGroup               => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+    case any: XAny                       => Param(tagged.tag.namespace, "any", tagged, SingleNotNillable, false)
     case _ => error("buildParam: " + tagged)
+  }
+
+  def buildElementParam(tagged: Tagged[XElement]): Param = {
+    val elem = tagged.value
+    val name = elem.name.getOrElse(elem.ref map {_.toString} getOrElse {"??"})
+    val occurrence = Occurrence(tagged)
+    val retval = Param(tagged.tag.namespace, name, elementType(tagged), occurrence, false)
+    log("Params#buildElementParam:  " + retval.toString)
+    retval
   }
 
   def elementType(tagged: Tagged[XElement]) = {

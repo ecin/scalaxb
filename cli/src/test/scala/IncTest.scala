@@ -45,14 +45,10 @@ object IncTest extends SpecBase {
   } // local element
 
   "the generated case classes" should {
-    "map xs:string parameters to String" >> {
+    "map xs:string params to String" >> {
       entitySource must find(
         """case class Address\(street: String,\s*
           |\s*city: String\)""".stripMargin)
-    }
-
-    "map complex type parameters map to the corresponding class or trait" >> {
-      entitySource must include("case class SingularComplexTypeTest(person1: Person")
     }
 
     val expectedSimpleTypeTest =
@@ -64,7 +60,7 @@ object IncTest extends SpecBase {
         |\s*milklist1: Seq\[MilkType\],\s*
         |\s*union: String\)""".stripMargin
 
-    "map simple type with enumeration to the corresponding trait" >> {
+    "map simple type param with enumeration to the trait" >> {
       entitySource must find(expectedSimpleTypeTest)
     }
 
@@ -90,6 +86,38 @@ object IncTest extends SpecBase {
 
     "map union of simple types as String" >> {
       entitySource must find(expectedSimpleTypeTest)
+    }
+
+    val expectedComplexTypeTest =
+      """case class SingularComplexTypeTest\(person1: Person,\s*
+        |\s*person2: Option\[Person\],\s*
+        |\s*person3: Option\[Person\],\s*
+        |\s*person4: Option\[Option\[Person\]\],\s*
+        |\s*person5: Seq\[Person\],\s*
+        |\s*person6: Seq\[Option\[Person\]\]\)""".stripMargin
+
+    "map complex type param to the class/trait" >> {
+      entitySource must find(expectedComplexTypeTest)
+    }
+
+    "map nillable complex type param to Option[A]" >> {
+      entitySource must find(expectedComplexTypeTest)
+    }
+
+    "map optional complex type param to Option[A]" >> {
+      entitySource must find(expectedComplexTypeTest)
+    }
+
+    "map nillable optional complex type param to Option[Option[A]]" >> {
+      entitySource must find(expectedComplexTypeTest)
+    }
+
+    "map maxOccurs >1 complex type param to Seq[A]" >> {
+      entitySource must find(expectedComplexTypeTest)
+    }
+
+    "map nillable maxOccurs >1 complex type param to Seq[Option[A]]" >> {
+      entitySource must find(expectedComplexTypeTest)
     }
   } // generated case classes
 }
