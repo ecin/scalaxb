@@ -35,6 +35,9 @@ trait ContextProcessor extends ScalaNames {
 
   }
 
+  def containsEnumeration(tagged: Tagged[XSimpleType]): Boolean =
+    containsEnumeration(tagged.value)(tagged.tag)
+
   def containsEnumeration(decl: XSimpleType)(implicit tag: HostTag): Boolean =
     !filterEnumeration(decl).isEmpty
 

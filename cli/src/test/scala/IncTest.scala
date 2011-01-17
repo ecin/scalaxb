@@ -55,8 +55,31 @@ object IncTest extends SpecBase {
       entitySource must include("case class SingularComplexTypeTest(person1: Person")
     }
 
-    "map simple type restriction of built-in type map to the built-in type" >> {
-      entitySource must include("case class SimpleTypeTest(quantity: BigInt")
+    val expectedSimpleTypeTest =
+      """case class SimpleTypeTest\(milk1: MilkType,\s*
+        |\s*milk2: MilkType,\s*
+        |\s*quantity: BigInt,\s*
+        |\s*comment: String,\s*
+        |\s*comment2: String\)""".stripMargin
+
+    "map simple type with enumeration to the corresponding trait" >> {
+      entitySource must find(expectedSimpleTypeTest)
+    }
+
+    "map simple type restriction of an enumeration to its base" >> {
+      entitySource must find(expectedSimpleTypeTest)
+    }
+
+    "map simple type restriction of a built-in to the built-in" >> {
+      entitySource must find(expectedSimpleTypeTest)
+    }
+
+    "map simple type restriction of a simple type to its base built-in" >> {
+      entitySource must find(expectedSimpleTypeTest)
+    }
+
+    "map simple type restriction of an ad-hoc simple type to its base" >> {
+      entitySource must find(expectedSimpleTypeTest)
     }
   } // generated case classes
 }

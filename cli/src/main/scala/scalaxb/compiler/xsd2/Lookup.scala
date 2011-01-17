@@ -71,7 +71,9 @@ trait Lookup extends ContextProcessor {
   def buildSimpleTypeTypeName(decl: XSimpleType)(implicit tag: HostTag): QualifiedName = {
     decl.arg1.value match {
       case restriction: XRestriction if containsEnumeration(decl) =>
-        QualifiedName(tag.namespace, names.get(decl) getOrElse {"??"})
+        // trace type hierarchy to the top most type that implements enumeration.
+        val base = baseType(decl)
+        QualifiedName(base.tag.namespace, names.get(base) getOrElse {"??"})
       case restriction: XRestriction =>
         buildTypeName(baseType(decl))
       case list: XList if containsEnumeration(decl) =>
@@ -90,23 +92,31 @@ trait Lookup extends ContextProcessor {
     }
   }
 
-  def baseType(decl: XSimpleType)(implicit tag: HostTag): Tagged[Any] = decl.arg1.value match {
-    case restriction: XRestriction if containsEnumeration(decl) =>
-      decl
+  def baseType(decl: Tagged[XSimpleType]): Tagged[Any] = decl.value.arg1.value match {
+    case XRestriction(_, _, _, Some(base), _) if containsEnumeration(decl) =>
+      QualifiedName.fromQName(base) match {
+        case BuiltInType(tagged) => decl
+        case SimpleType(tagged)  =>
+          if (containsEnumeration(tagged)) baseType(tagged)
+          else decl
+      }
     case XRestriction(_, _, _, Some(base), _) =>
       QualifiedName.fromQName(base) match {
         case BuiltInType(tagged) => tagged
-        case SimpleType(tagged)  => baseType(tagged.value)
+        case SimpleType(tagged)  => baseType(tagged)
       }
+    case XRestriction(_, XSimpleRestrictionModelSequence(Some(simpleType), _), _, _, _) if containsEnumeration(decl) =>
+      if (containsEnumeration(Tagged(simpleType, decl.tag))) baseType(Tagged(simpleType, decl.tag))
+      else decl
     case XRestriction(_, XSimpleRestrictionModelSequence(Some(simpleType), _), _, _, _) =>
-      baseType(simpleType)
+      baseType(Tagged(simpleType, decl.tag))
     case XList(_, _, _, Some(itemType), _) =>
       QualifiedName.fromQName(itemType) match {
         case BuiltInType(tagged) => tagged
-        case SimpleType(tagged)  => baseType(tagged.value)
+        case SimpleType(tagged)  => baseType(tagged)
       }
     case XList(_, Some(simpleType), _, _, _) =>
-      baseType(simpleType)
+      baseType(Tagged(simpleType, decl.tag))
     case x: XUnion => Tagged(XsString, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, "string"))
     case _ => error("baseType#: Unsupported content " +  decl.arg1.value.toString)
   }

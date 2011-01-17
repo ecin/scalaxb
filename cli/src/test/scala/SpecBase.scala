@@ -341,12 +341,45 @@ trait SpecBase extends Specification {
     </xs:sequence>
   </xs:complexType>
 
+  <xs:simpleType name="ShortString">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="140"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:complexType name="SimpleTypeTest">
     <xs:sequence>
+      <xs:element name="milk1" type="gen:MilkType"/>
+      <xs:element name="milk2">
+        <xs:simpleType>
+          <xs:restriction base="gen:MilkType">
+            <xs:enumeration value="WHOLE"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
       <xs:element name="quantity">
         <xs:simpleType>
           <xs:restriction base="xs:positiveInteger">
             <xs:maxExclusive value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="comment">
+        <xs:simpleType>
+          <xs:restriction base="gen:ShortString">
+            <xs:maxLength value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="comment2">
+        <xs:simpleType>
+          <xs:restriction>
+            <xs:simpleType>
+              <xs:restriction base="gen:ShortString">
+                <xs:maxLength value="130"/>
+              </xs:restriction>
+            </xs:simpleType>
+            <xs:maxLength value="100"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
