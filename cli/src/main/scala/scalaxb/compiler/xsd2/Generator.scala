@@ -44,17 +44,24 @@ class Generator(val schema: ReferenceSchema, val logger: Logger,
     val localName = name.localPart
     val list = decl.particles
     val paramList = Param.fromList(list)
-    val compositors = decl flatMap {
-      case x: TaggedKeyedGroup if List("choice", "all", "sequence") contains x.value.key => Some(x)
-      case _ => None
+    val compositors = decl collect {
+      case Compositor(compositor) => compositor
     }
+    val compositorCodes = compositors.toList map { generateCompositor }
 
-    Snippet(<source>case class { localName }({
-      paramList.map(_.toScalaCode).mkString(", " + NL + indent(1))})</source>)
+    Snippet(Snippet(<source>case class { localName }({
+      paramList.map(_.toScalaCode).mkString(", " + NL + indent(1))})</source>) :: compositorCodes: _*)
   }
 
-  def generateCompositor(decl: Tagged[KeyedGroup]): Snippet = {
-    Snippet(<source></source>)
+  def generateCompositor(decl: Tagged[KeyedGroup]): Snippet = decl.key match {
+    // case "sequence" => makeSequence(seq)
+    case _ =>
+//      val superNames: List[String] = buildOptions(compositor)
+//      val superString = if (superNames.isEmpty) ""
+//        else " extends " + superNames.mkString(" with ")
+      val superString = ""
+      val name = names.get(decl) getOrElse {"??"}
+      Snippet(<source>trait {name}{superString}</source>)
   }
 
   def processSimpleType(decl: Tagged[XSimpleType]): List[Snippet] =

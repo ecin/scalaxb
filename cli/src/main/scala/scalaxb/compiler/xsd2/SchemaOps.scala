@@ -387,3 +387,10 @@ object ComplexTypeOps {
 
   }
 }
+
+object Compositor {
+  def unapply(value: Tagged[_]): Option[TaggedKeyedGroup] = value match {
+    case x: TaggedKeyedGroup if List("choice", "all", "sequence") contains x.value.key => Some(x)
+    case _ => None
+  }
+}

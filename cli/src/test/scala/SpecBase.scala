@@ -147,6 +147,16 @@ trait SpecBase extends Specification {
     </xs:sequence>
   </xs:complexType>
 
+  <xs:complexType name="AnyTest2">
+    <xs:sequence>
+      <xs:any minOccurs="0" />
+      <xs:element name="foo" type="xs:string" />
+      <xs:any/>
+      <xs:element name="foo2" type="xs:string" />
+      <xs:any maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
   <xs:complexType name="AnyTypeTest">
     <xs:sequence>
       <xs:element name="any1" type="xs:anyType"/>
@@ -390,16 +400,6 @@ trait SpecBase extends Specification {
         </xs:simpleType>
       </xs:element>
 
-    </xs:sequence>
-  </xs:complexType>
-
-  <xs:complexType name="AnyTest">
-    <xs:sequence>
-      <xs:any minOccurs="0" />
-      <xs:element name="foo" type="xs:string" />
-      <xs:any/>
-      <xs:element name="foo2" type="xs:string" />
-      <xs:any maxOccurs="unbounded" />
     </xs:sequence>
   </xs:complexType>
 

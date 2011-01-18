@@ -43,11 +43,11 @@ object IncTest extends SpecBase {
     }
   } // local element
 
-//  "choices in a complex type" should {
-//    "generate a trait named %A%Option[n]" >> {
-//      entitySource must include("trait ChoiceComplexTypeTestOption")
-//    }
-//  } // choices
+  "choices in a complex type" should {
+    "generate a trait named %A%Option[n]" >> {
+      entitySource must include("trait ChoiceComplexTypeTestOption")
+    }
+  } // choices
 
   "the generated case classes" should {
     "map xs:string params to String" >> {
@@ -126,7 +126,7 @@ object IncTest extends SpecBase {
     }
 
     val exptectedAnyTest =
-      """case class AnyTest\(any: Option\[scalaxb\.DataRecord\[Any\]\],\s*
+      """case class AnyTest2\(any: Option\[scalaxb\.DataRecord\[Any\]\],\s*
         |\s*foo: String,\s*
         |\s*any2: scalaxb\.DataRecord\[Any\],\s*
         |\s*foo2: String,\s*

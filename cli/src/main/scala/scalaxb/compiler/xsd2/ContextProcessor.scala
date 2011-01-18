@@ -13,24 +13,32 @@ trait ContextProcessor extends ScalaNames {
   lazy val names = context.names
 
   def processSchema(schema: ReferenceSchema) {
-    schema.unbound foreach { tagged =>
-      implicit val tag = tagged.tag
-      tagged.value match {
-        case x: XTopLevelElement     => nameTypes(x)
-        case x: XTopLevelSimpleType  => nameTypes(x)
-        case x: XTopLevelComplexType => nameTypes(x)
-        case _ =>
-      }
+    schema.unbound foreach {
+      case tagged: TaggedElement =>
+        tagged.value match {
+          case x: XTopLevelElement => nameElementTypes(tagged)
+          case _ =>
+        }
+      case tagged: TaggedSimpleType =>
+        tagged.value match {
+          case x: XTopLevelSimpleType => nameSimpleTypes(tagged)
+          case _ =>
+        }
+      case tagged: TaggedComplexType =>
+        tagged.value match {
+          case x: XTopLevelComplexType => nameComplexTypes(tagged)
+          case _ =>
+        }
+      case _ =>
     }
 
-    schema.unbound foreach { tagged =>
-      implicit val tag = tagged.tag
-      tagged.value match {
-        case x: XLocalElement     => nameTypes(x)
-        // case x: XTopLevelSimpleType  => nameTypes(x)
-        // case x: XLocalComplexType => nameTypes(x)
-        case _ =>
-      }
+    schema.unbound foreach {
+      case tagged: TaggedElement =>
+        tagged.value match {
+          case x: XLocalElement => nameElementTypes(tagged)
+          case _ =>
+        }
+      case _ =>
     }
 
   }
@@ -53,51 +61,79 @@ trait ContextProcessor extends ScalaNames {
       case _ => Nil
     }
 
-  def nameTypes(elem: XElement)(implicit tag: HostTag) {
+  def nameElementTypes(elem: Tagged[XElement]) {
+    implicit val tag = elem.tag
+
     elem.xelementoption map {_.value match {
       case x: XLocalComplexType =>
-        names(Tagged(x, tag)) = makeProtectedTypeName(elem)
+        names(Tagged(x, tag)) = makeProtectedElementTypeName(elem)
       case x: XLocalSimpleType if (containsEnumeration(x)) =>
-        names(Tagged(x, tag)) = makeProtectedTypeName(elem)
-        nameEnumValues(x)
+        names(Tagged(x, tag)) = makeProtectedElementTypeName(elem)
+        nameEnumValues(Tagged(x, elem.tag))
       case _ =>
     }}
   }
 
-  def nameTypes(decl: XSimpleType)(implicit tag: HostTag) {
+  def nameSimpleTypes(decl: Tagged[XSimpleType]) {
     if (containsEnumeration(decl)) {
-      names(Tagged(decl, tag)) = makeProtectedTypeName(decl)
+      names(decl) = makeProtectedSimpleTypeName(decl)
       nameEnumValues(decl)
     }
   }
 
-  def nameTypes(decl: XComplexType)(implicit tag: HostTag) {
-    names(Tagged(decl, tag)) = makeProtectedTypeName(decl)
-  }
-
-  def nameEnumValues(decl: XSimpleType)(implicit tag: HostTag) {
-    filterEnumeration(decl) map { enum =>
-      names(enum) = makeProtectedTypeName(enum.value)
+  def nameComplexTypes(decl: Tagged[XComplexType]) {
+    names(decl) = makeProtectedComplexTypeName(decl)
+    decl collect {
+      case Compositor(compositor) => nameCompositor(compositor)
     }
   }
 
-  def makeProtectedTypeName(elem: XElement)(implicit tag: HostTag): String =
-    makeProtectedTypeName(elem.name, "")
+  def nameCompositor(tagged: Tagged[KeyedGroup]) {
+    tagged.value.key match {
+      case "choice"   => names(tagged) = makeProtectedTypeName(tagged.tag.name + "Option", "", tagged.tag, false)
+      case "sequence" => names(tagged) = makeProtectedTypeName(tagged.tag.name + "Sequence", "", tagged.tag, false)
+      case "all"      => names(tagged) = makeProtectedTypeName(tagged.tag.name + "All", "", tagged.tag, false)
+      case _ =>
+    }
+  }
 
-  def makeProtectedTypeName(decl: XComplexType)(implicit tag: HostTag): String =
-    makeProtectedTypeName(decl.name, "Type")
+  def nameEnumValues(decl: Tagged[XSimpleType]) {
+    filterEnumeration(decl) map { enum =>
+      names(enum) = makeProtectedEnumTypeName(enum)
+    }
+  }
 
-  def makeProtectedTypeName(decl: XSimpleType)(implicit tag: HostTag): String =
-    makeProtectedTypeName(decl.name, "Type")
+  def makeProtectedElementTypeName(elem: Tagged[XElement]): String =
+    makeProtectedTypeName(elem.name, "", elem.tag, true)
 
-  def makeProtectedTypeName(enum: XNoFixedFacet)(implicit tag: HostTag): String =
-    makeProtectedTypeName(enum.value, "Value")
+  def makeProtectedComplexTypeName(decl: Tagged[XComplexType]): String =
+    makeProtectedTypeName(decl.name, "Type", decl.tag, true)
 
-  def makeProtectedTypeName(initialName: Option[String], postfix: String)(implicit tag: HostTag): String =
-    makeProtectedTypeName(initialName getOrElse {error("name is required.")}, postfix)
+  def makeProtectedSimpleTypeName(decl: Tagged[XSimpleType]): String =
+    makeProtectedTypeName(decl.name, "Type", decl.tag, true)
 
-  def makeProtectedTypeName(initialName: String, postfix: String)(implicit tag: HostTag): String = {
-    makeTypeName(initialName)
+  def makeProtectedEnumTypeName(enum: Tagged[XNoFixedFacet]): String =
+    makeProtectedTypeName(enum.value.value, "Value", enum.tag, true)
+
+  def makeProtectedTypeName(initialName: Option[String], postfix: String, tag: HostTag, appendHost: Boolean): String =
+    makeProtectedTypeName(initialName getOrElse {error("name is required.")}, postfix, tag, appendHost)
+
+  def makeProtectedTypeName(initialName: String, postfix: String, tag: HostTag, appendHost: Boolean): String = {
+    def contains(s: String) = names.valuesIterator.contains(s)
+
+    var name = makeTypeName(initialName)
+    if (!contains(name)) name
+    else {
+      name = makeTypeName(tag.name + initialName.capitalize)
+      if (appendHost && !contains(name) && initialName != tag.name) name
+      else {
+        name = makeTypeName(initialName) + postfix
+        for (i <- 2 to 100) {
+          if (contains(name)) name = makeTypeName(initialName) + postfix + i
+        } // for i
+        name
+      }
+    }
   }
 
   def makeParamName(name: String) = {
