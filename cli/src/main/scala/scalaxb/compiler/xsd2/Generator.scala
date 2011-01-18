@@ -32,11 +32,10 @@ class Generator(val schema: ReferenceSchema, val logger: Logger,
     Snippet(
       headerSnippet ::
       (schema.unbound flatMap {
-        case Tagged(x, tag) => x match {
-          case decl: XComplexType => processComplexType(Tagged(decl, tag))
-          case decl: XSimpleType if containsEnumeration(decl)(tag) => processSimpleType(Tagged(decl, tag))
-          case _ => Nil
-        }}).toList: _*)
+        case x: TaggedComplexType => processComplexType(x)
+        case x: TaggedSimpleType if containsEnumeration(x) => processSimpleType(x)
+        case _ => Nil
+      }).toList: _*)
 
   def processComplexType(decl: Tagged[XComplexType]): List[Snippet] =
     List(generateComplexTypeEntity(buildTypeName(decl), decl))
@@ -45,9 +44,17 @@ class Generator(val schema: ReferenceSchema, val logger: Logger,
     val localName = name.localPart
     val list = decl.particles
     val paramList = Param.fromList(list)
+    val compositors = decl flatMap {
+      case x: TaggedKeyedGroup if List("choice", "all", "sequence") contains x.value.key => Some(x)
+      case _ => None
+    }
 
     Snippet(<source>case class { localName }({
       paramList.map(_.toScalaCode).mkString(", " + NL + indent(1))})</source>)
+  }
+
+  def generateCompositor(decl: Tagged[KeyedGroup]): Snippet = {
+    Snippet(<source></source>)
   }
 
   def processSimpleType(decl: Tagged[XSimpleType]): List[Snippet] =

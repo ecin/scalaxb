@@ -29,11 +29,11 @@ import Defs._
 import java.net.{URI}
 
 case class ReferenceSchema(targetNamespace: Option[URI],
-                           topElems: immutable.ListMap[String, Tagged[XTopLevelElement]],
+                           topElems: immutable.ListMap[String, Tagged[XElement]],
                            topTypes: immutable.ListMap[String, Tagged[XAnnotatedable]],
-                           topAttrs: immutable.ListMap[String, Tagged[XTopLevelAttribute]],
-                           topGroups: immutable.ListMap[String, Tagged[XNamedGroup]],
-                           topAttrGroups: immutable.ListMap[String, Tagged[XNamedAttributeGroup]],
+                           topAttrs: immutable.ListMap[String, Tagged[XAttributable]],
+                           topGroups: immutable.ListMap[String, Tagged[KeyedGroup]],
+                           topAttrGroups: immutable.ListMap[String, Tagged[XAttributeGroup]],
                            scope: scala.xml.NamespaceBinding,
                            unbound: XSchema)
 
@@ -41,7 +41,7 @@ object ReferenceSchema {
   def fromSchema(schema: XSchema, scope: scala.xml.NamespaceBinding): ReferenceSchema = {
     val ns = schema.targetNamespace
     ReferenceSchema(ns,
-      immutable.ListMap[String, Tagged[XTopLevelElement]](schema.xschemasequence1 collect {
+      immutable.ListMap[String, Tagged[XElement]](schema.xschemasequence1 collect {
         case XSchemaSequence1(DataRecord(_, _, x: XTopLevelElement), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
       }: _*),
@@ -51,15 +51,15 @@ object ReferenceSchema {
         case XSchemaSequence1(DataRecord(_, _, x: XTopLevelComplexType), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
       }: _*),
-      immutable.ListMap[String, Tagged[XTopLevelAttribute]](schema.xschemasequence1 collect {
+      immutable.ListMap[String, Tagged[XAttributable]](schema.xschemasequence1 collect {
         case XSchemaSequence1(DataRecord(_, _, x: XTopLevelAttribute), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
       }: _*),
-      immutable.ListMap[String, Tagged[XNamedGroup]](schema.xschemasequence1 collect {
-        case XSchemaSequence1(DataRecord(_, _, x: XNamedGroup), _) =>
-          HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
+      immutable.ListMap[String, Tagged[KeyedGroup]](schema.xschemasequence1 collect {
+        case XSchemaSequence1(DataRecord(_, Some(key), x: XNamedGroup), _) =>
+          HostTag(ns, x).name -> Tagged(KeyedGroup(key, x), HostTag(ns, x))
       }: _*),
-      immutable.ListMap[String, Tagged[XNamedAttributeGroup]](schema.xschemasequence1 collect {
+      immutable.ListMap[String, Tagged[XAttributeGroup]](schema.xschemasequence1 collect {
         case XSchemaSequence1(DataRecord(_, _, x: XNamedAttributeGroup), _) =>
           HostTag(ns, x).name -> Tagged(x, HostTag(ns, x))
       }: _*),
@@ -96,35 +96,23 @@ case class WrappedSchema(targetNamespace: Option[String],
 
 object WrappedSchema {
   def typeList(schema: XSchema): Seq[Tagged[XAnnotatedable]] =
-    schema flatMap {
-      case Tagged(x, tag) => x match {
-        case decl: XComplexType => List(Tagged(decl, tag))
-        case decl: XSimpleType  => List(Tagged(decl, tag))
-        case _ => Nil
-      }
+    schema collect {
+      case tagged: TaggedSimpleType  => (tagged: Tagged[XAnnotatedable])
+      case tagged: TaggedComplexType => (tagged: Tagged[XAnnotatedable])
     }
 
-  def elemList(schema: XSchema): Seq[Tagged[XElement]] =
-    schema flatMap {
-      case Tagged(x, tag) => x match {
-        case elem: XElement => List(Tagged(elem, tag))
-        case _ => Nil
-      }
+  def elemList(schema: XSchema): Seq[TaggedElement] =
+    schema collect {
+      case tagged: TaggedElement => tagged
     }
 
-  def attrList(schema: XSchema): Seq[Tagged[XAttributable]] =
-    schema flatMap {
-      case Tagged(x, tag) => x match {
-        case attr: XAttributable => List(Tagged(attr, tag))
-        case _ => Nil
-      }
+  def attrList(schema: XSchema): Seq[TaggedAttribute] =
+    schema collect {
+      case tagged: TaggedAttribute => tagged
     }
 
-  def choiceList(schema: XSchema): Seq[Tagged[XGroup]] =
-    schema flatMap {
-      case Tagged(x, tag) => x match {
-        case KeyedGroup("choice", group) => List(Tagged(group, tag))
-        case _ => Nil
-      }
+  def choiceList(schema: XSchema): Seq[TaggedKeyedGroup] =
+    schema collect {
+      case tagged: TaggedKeyedGroup if tagged.value.key == "choice" => tagged
     }
 }

@@ -57,7 +57,7 @@ trait Params extends Lookup {
 
   object Param {
     def fromList(particles: List[Tagged[Any]]): List[Param] = {
-      var anyNumber: Int = -1
+      var anyNumber: Int = 0
       particles map { tagged => tagged.value match {
         case any: XAny =>
           anyNumber += 1
@@ -68,12 +68,12 @@ trait Params extends Lookup {
 
     // tagged can be Tagged[XSimpleType], Tagged[BuiltInSymbol], Tagged[XElement], Tagged[KeyedGroup],
     // Tagged[XAny].
-    private def buildParam(tagged: Tagged[Any], anyNumber: Int) = tagged.value match {
-      case decl: XSimpleType               => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
-      case symbol: BuiltInSimpleTypeSymbol => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
-      case elem: XElement                  => buildElementParam(Tagged(elem, tagged.tag))
-      case group: KeyedGroup               => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
-      case any: XAny                       => buildAnyParam(Tagged(any, tagged.tag), anyNumber)
+    private def buildParam(tagged: Tagged[Any], postfix: Int) = tagged match {
+      case TaggedSimpleType(decl, tag)  => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+      case TaggedSymbol(symbol, tag)    => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+      case x: TaggedElement             => buildElementParam(x)
+      case TaggedKeyedGroup(group, tag) => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+      case x: TaggedAny                 => buildAnyParam(x, postfix)
       case _ => error("buildParam: " + tagged)
     }
 
@@ -96,10 +96,10 @@ trait Params extends Lookup {
       retval
     }
 
-    private def buildAnyParam(tagged: Tagged[XAny], anyNumber: Int): Param = {
+    private def buildAnyParam(tagged: Tagged[XAny], postfix: Int): Param = {
       val any = tagged.value
-      val name = if (anyNumber == 0) "any"
-        else "any" + (anyNumber + 1)
+      val name = if (postfix <= 1) "any"
+        else "any" + postfix.toString
       val retval = Param(tagged.tag.namespace, name, tagged, Occurrence(any), false)
       log("Params#buildAnyParam:  " + retval.toString)
       retval

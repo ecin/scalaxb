@@ -149,10 +149,8 @@ trait Lookup extends ContextProcessor {
     def unapply(typeName: QualifiedName): Option[Tagged[XSimpleType]] = typeName match {
       case QualifiedName(targetNamespace, localPart) if schema.topTypes contains localPart =>
         schema.topTypes(typeName.localPart) match {
-          case Tagged(value, tag) => value match {
-            case x: XSimpleType => Some(Tagged(x, tag))
-            case _ => None
-          }
+          case x: TaggedSimpleType => Some(x)
+          case _ => None
         }
       case _ => None
     }
@@ -162,10 +160,8 @@ trait Lookup extends ContextProcessor {
     def unapply(typeName: QualifiedName): Option[Tagged[XComplexType]] = typeName match {
       case QualifiedName(targetNamespace, localPart) if schema.topTypes contains localPart =>
         schema.topTypes(typeName.localPart) match {
-          case Tagged(value, tag) => value match {
-            case x: XComplexType => Some(Tagged(x, tag))
-            case _ => None
-          }
+          case x: TaggedComplexType => Some(x)
+          case _ => None
         }
       case _ => None
     }

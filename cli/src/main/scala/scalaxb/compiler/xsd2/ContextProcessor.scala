@@ -48,7 +48,7 @@ trait ContextProcessor extends ScalaNames {
     decl.arg1.value match {
       case restriction: XRestriction =>
         restriction.arg1.arg2 collect {
-          case DataRecord(_, Some("enumeration"), enum: XNoFixedFacet) => Tagged(enum, tag)
+          case DataRecord(_, Some("enumeration"), enum: XNoFixedFacet) => TaggedEnum(enum, tag)
         }
       case _ => Nil
     }

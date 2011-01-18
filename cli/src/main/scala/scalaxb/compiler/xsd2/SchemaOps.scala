@@ -25,6 +25,7 @@ package scalaxb.compiler.xsd2
 import java.net.{URI}
 import scala.xml.{NamespaceBinding}
 import scalaxb._
+import scalaxb.compiler.xsd.{XsTypeSymbol}
 import xmlschema._
 import scala.collection.immutable
 
@@ -66,38 +67,68 @@ object HostTag {
 }
 
 case class KeyedGroup(key: String, group: XGroup)
-case class Tagged[+A](val value: A, val tag: HostTag) {
+trait Tagged[+A] {
+  def value: A
+  def tag: HostTag
   override def toString: String = "Tagged(%s, %s)".format(value.toString, tag.toString)
 }
 object Tagged {
-  implicit def box[A](value: A)(implicit tag: HostTag): Tagged[A] = Tagged[A](value, tag)
+  def apply(value: XSimpleType, tag: HostTag): Tagged[XSimpleType] = TaggedSimpleType(value, tag)
+  def apply(value: XComplexType, tag: HostTag): Tagged[XComplexType] = TaggedComplexType(value, tag)
+  def apply(value: KeyedGroup, tag: HostTag): Tagged[KeyedGroup] = TaggedKeyedGroup(value, tag)
+  def apply(value: XAttributeGroup, tag: HostTag): Tagged[XAttributeGroup] = TaggedAttributeGroup(value, tag)
+  def apply(value: XElement, tag: HostTag): Tagged[XElement] = TaggedElement(value, tag)
+  def apply(value: XAttributable, tag: HostTag): Tagged[XAttributable] = TaggedAttribute(value, tag)
+  def apply(value: XAny, tag: HostTag): Tagged[XAny] = TaggedAny(value, tag)
+  def apply(value: XsTypeSymbol, tag: HostTag): Tagged[XsTypeSymbol] = TaggedSymbol(value, tag)
+  def apply(value: XNoFixedFacet, tag: HostTag): Tagged[XNoFixedFacet] = TaggedEnum(value, tag)
+
+  implicit def box(value: XSimpleType)(implicit tag: HostTag) = Tagged(value, tag)
+  implicit def box(value: XComplexType)(implicit tag: HostTag) = Tagged(value, tag)
+  implicit def box(value: KeyedGroup)(implicit tag: HostTag) = Tagged(value, tag)
+  implicit def box(value: XAttributeGroup)(implicit tag: HostTag) = Tagged(value, tag)
+  implicit def box(value: XElement)(implicit tag: HostTag) = Tagged(value, tag)
+  implicit def box(value: XAttributable)(implicit tag: HostTag) = Tagged(value, tag)
+  implicit def box(value: XAny)(implicit tag: HostTag) = Tagged(value, tag)
+  implicit def box(value: XsTypeSymbol)(implicit tag: HostTag) = Tagged(value, tag)
+  implicit def box(value: XNoFixedFacet)(implicit tag: HostTag) = Tagged(value, tag)
+
   implicit def unbox[A](tagged: Tagged[A]): A = tagged.value
 }
 
+case class TaggedSimpleType(value: XSimpleType, tag: HostTag) extends Tagged[XSimpleType] {}
+case class TaggedComplexType(value: XComplexType, tag: HostTag) extends Tagged[XComplexType] {}
+case class TaggedKeyedGroup(value: KeyedGroup, tag: HostTag) extends Tagged[KeyedGroup] {}
+case class TaggedAttributeGroup(value: XAttributeGroup, tag: HostTag) extends Tagged[XAttributeGroup] {}
+case class TaggedElement(value: XElement, tag: HostTag) extends Tagged[XElement] {}
+case class TaggedAttribute(value: XAttributable, tag: HostTag) extends Tagged[XAttributable] {}
+case class TaggedAny(value: XAny, tag: HostTag) extends Tagged[XAny] {}
+case class TaggedSymbol(value: XsTypeSymbol, tag: HostTag) extends Tagged[XsTypeSymbol] {}
+case class TaggedEnum(value: XNoFixedFacet, tag: HostTag) extends Tagged[XNoFixedFacet] {}
 
-class SchemaOps(val schema: XSchema) extends immutable.LinearSeq[Tagged[Any]] {
+class SchemaOps(val schema: XSchema) extends immutable.LinearSeq[Tagged[_]] {
   lazy val length: Int = list.length
-  def apply(index: Int): Tagged[Any] = list(index)
+  def apply(index: Int): Tagged[_] = list(index)
 
   override def isEmpty = list.isEmpty
   override def head = list.head
   override def tail= list.tail
   override def toList = list
 
-  private lazy val list: List[Tagged[Any]] = SchemaOps.schemaToList(schema)
+  private lazy val list: List[Tagged[_]] = SchemaOps.schemaToList(schema)
 }
 
 object SchemaOps {
   import Defs._
 
-  def toThat(decl: XSimpleType, tag: HostTag): Option[Tagged[Any]] = Some(Tagged(decl, tag))
-  def toThat(decl: XComplexType, tag: HostTag): Option[Tagged[Any]] = Some(Tagged(decl, tag))
-  def toThat(group: KeyedGroup, tag: HostTag): Option[Tagged[Any]] = Some(Tagged(group, tag))
-  def toThat(group: XAttributeGroup, tag: HostTag): Option[Tagged[Any]] = Some(Tagged(group, tag))
-  def toThat(elem: XElement, tag: HostTag): Option[Tagged[Any]] = Some(Tagged(elem, tag))
-  def toThat(attr: XAttributable, tag: HostTag): Option[Tagged[Any]] = Some(Tagged(attr, tag))
+  def toThat(decl: XSimpleType, tag: HostTag): Option[Tagged[_]] = Some(Tagged(decl, tag))
+  def toThat(decl: XComplexType, tag: HostTag): Option[Tagged[_]] = Some(Tagged(decl, tag))
+  def toThat(group: KeyedGroup, tag: HostTag): Option[Tagged[_]] = Some(Tagged(group, tag))
+  def toThat(group: XAttributeGroup, tag: HostTag): Option[Tagged[_]] = Some(Tagged(group, tag))
+  def toThat(elem: XElement, tag: HostTag): Option[Tagged[_]] = Some(Tagged(elem, tag))
+  def toThat(attr: XAttributable, tag: HostTag): Option[Tagged[_]] = Some(Tagged(attr, tag))
 
-  def schemaToList(schema: XSchema): List[Tagged[Any]] = {
+  def schemaToList(schema: XSchema): List[Tagged[_]] = {
     val ns = schema.targetNamespace
 
     // <xs:element ref="xs:simpleType"/>
@@ -126,7 +157,7 @@ object SchemaOps {
     }
   }
 
-  def processSimpleType(decl: XSimpleType)(implicit tag: HostTag): List[Tagged[Any]] =
+  def processSimpleType(decl: XSimpleType)(implicit tag: HostTag): List[Tagged[_]] =
     toThat(decl, tag).toList :::
     (decl.arg1 match {
       case DataRecord(_, _, restriction: XRestriction) =>
@@ -136,7 +167,7 @@ object SchemaOps {
       case DataRecord(_, _, x: XUnion) => Nil
     })
 
-  def processGroup(group: KeyedGroup)(implicit tag: HostTag): List[Tagged[Any]] = {
+  def processGroup(group: KeyedGroup)(implicit tag: HostTag): List[Tagged[_]] = {
     // all, choice, and sequence are XExplicitGroupable, which are XGroup.
     // <xs:element name="element" type="xs:localElement"/>
     // <xs:element name="group" type="xs:groupRef"/>
@@ -159,44 +190,44 @@ object SchemaOps {
     })
   }
 
-  def processAttributeGroup(group: XAttributeGroup)(implicit tag: HostTag): List[Tagged[Any]] =
+  def processAttributeGroup(group: XAttributeGroup)(implicit tag: HostTag): List[Tagged[_]] =
     toThat(group, tag).toList :::
     processAttrSeq(group.arg1)
 
-  def processElement(elem: XElement)(implicit tag: HostTag): List[Tagged[Any]] =
+  def processElement(elem: XElement)(implicit tag: HostTag): List[Tagged[_]] =
     toThat(elem, tag).toList :::
     (elem.xelementoption map { _.value match {
       case x: XLocalComplexType => Tagged(x, tag).toList
       case x: XLocalSimpleType  => processSimpleType(x)
     }} getOrElse {Nil})
 
-  def processAttribute(attr: XAttributable)(implicit tag: HostTag): List[Tagged[Any]] =
+  def processAttribute(attr: XAttributable)(implicit tag: HostTag): List[Tagged[_]] =
     toThat(attr, tag).toList :::
     (attr.simpleType map { processSimpleType } getOrElse {Nil})
 
-  def processAttrSeq(attrSeq: XAttrDeclsSequence)(implicit tag: HostTag): List[Tagged[Any]] =
+  def processAttrSeq(attrSeq: XAttrDeclsSequence)(implicit tag: HostTag): List[Tagged[_]] =
     attrSeq.xattrdeclsoption1.toList flatMap {
       case DataRecord(_, _, x: XAttributable)      => processAttribute(x)
       case DataRecord(_, _, x: XAttributeGroupRef) => processAttributeGroup(x)
     }
 }
 
-class ComplexTypeOps(val decl: Tagged[XComplexType]) extends immutable.LinearSeq[Tagged[Any]] {
+class ComplexTypeOps(val decl: Tagged[XComplexType]) extends immutable.LinearSeq[Tagged[_]] {
   lazy val length: Int = list.length
-  def apply(index: Int): Tagged[Any] = list(index)
+  def apply(index: Int): Tagged[_] = list(index)
 
   override def isEmpty = list.isEmpty
   override def head = list.head
   override def tail= list.tail
   override def toList = list
 
-  private lazy val list: List[Tagged[Any]] = ComplexTypeOps.complexTypeToList(decl)
+  private lazy val list: List[Tagged[_]] = ComplexTypeOps.complexTypeToList(decl)
   def particles(implicit lookup: Lookup, targetNamespace: Option[URI], scope: NamespaceBinding) =
     ComplexTypeOps.complexTypeToParticles(decl)
 }
 
 object ComplexTypeOps {
-  def complexTypeToList(decl: Tagged[XComplexType]): List[Tagged[Any]] = {
+  def complexTypeToList(decl: Tagged[XComplexType]): List[Tagged[_]] = {
     implicit val tag = decl.tag
 
     // <xs:group ref="xs:typeDefParticle"/>
@@ -279,7 +310,7 @@ object ComplexTypeOps {
         case x: XExplicitGroupable =>
           if (particleKey == "sequence") innerSequenceToParticles(Tagged(KeyedGroup(particleKey, x), tag))
           else List(Tagged(KeyedGroup(particleKey, x), tag))
-        case x: XAny               => List(Tagged(x, tag))
+        case x: XAny               => List(TaggedAny(x, tag))
       }
 
     def toParticles(group: KeyedGroup): List[Tagged[Any]] =

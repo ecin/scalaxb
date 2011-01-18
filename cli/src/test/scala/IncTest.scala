@@ -21,7 +21,6 @@ object IncTest extends SpecBase {
     }
   } // complexType
 
-
   "top-level simple types with enumeration" should {
     "generate a trait named similarly" >> {
       entitySource must include("trait MilkType")
@@ -43,6 +42,12 @@ object IncTest extends SpecBase {
       entitySource must include("case class Item(")
     }
   } // local element
+
+//  "choices in a complex type" should {
+//    "generate a trait named %A%Option[n]" >> {
+//      entitySource must include("trait ChoiceComplexTypeTestOption")
+//    }
+//  } // choices
 
   "the generated case classes" should {
     "map xs:string params to String" >> {
