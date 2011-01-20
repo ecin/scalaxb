@@ -83,16 +83,18 @@ trait ContextProcessor extends ScalaNames {
 
   def nameComplexTypes(decl: Tagged[XComplexType]) {
     names(decl) = makeProtectedComplexTypeName(decl)
+    val primarySequence = decl.primarySequence
     decl collect {
-      case Compositor(compositor) => nameCompositor(compositor)
+      case Compositor(compositor) if Some(compositor) != primarySequence =>
+        nameCompositor(compositor)
     }
   }
 
   def nameCompositor(tagged: Tagged[KeyedGroup]) {
     tagged.value.key match {
-      case "choice"   => names(tagged) = makeProtectedTypeName(tagged.tag.name + "Option", "", tagged.tag, false)
-      case "sequence" => names(tagged) = makeProtectedTypeName(tagged.tag.name + "Sequence", "", tagged.tag, false)
-      case "all"      => names(tagged) = makeProtectedTypeName(tagged.tag.name + "All", "", tagged.tag, false)
+      case ChoiceTag   => names(tagged) = makeProtectedTypeName(tagged.tag.name + "Option", "", tagged.tag, false)
+      case SequenceTag => names(tagged) = makeProtectedTypeName(tagged.tag.name + "Sequence", "", tagged.tag, false)
+      case AllTag      => names(tagged) = makeProtectedTypeName(tagged.tag.name + "All", "", tagged.tag, false)
       case _ =>
     }
   }

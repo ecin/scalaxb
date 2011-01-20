@@ -19,6 +19,10 @@ object IncTest extends SpecBase {
     "generate a case class named similarly" >> {
       entitySource must include("case class Address(")
     }
+
+    "not generate case class for the primary sequence" >> {
+      entitySource must not include("AddressSequence")
+    }
   } // complexType
 
   "top-level simple types with enumeration" should {

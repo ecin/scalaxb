@@ -44,8 +44,9 @@ class Generator(val schema: ReferenceSchema, val logger: Logger,
     val localName = name.localPart
     val list = decl.particles
     val paramList = Param.fromList(list)
+    val primarySequence = decl.primarySequence
     val compositors = decl collect {
-      case Compositor(compositor) => compositor
+      case Compositor(compositor) if Some(compositor) != primarySequence => compositor
     }
     val compositorCodes = compositors.toList map { generateCompositor }
 

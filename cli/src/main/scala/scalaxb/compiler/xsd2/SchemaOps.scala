@@ -41,6 +41,9 @@ object Defs {
   val NL = System.getProperty("line.separator")
 
   val XS_ANY_TYPE = QualifiedName(XML_SCHEMA_URI, "anyType")
+  val ChoiceTag = "choice"
+  val SequenceTag = "sequence"
+  val AllTag = "all"
 }
 
 abstract class TopLevelType
@@ -224,9 +227,17 @@ class ComplexTypeOps(val decl: Tagged[XComplexType]) extends immutable.LinearSeq
   private lazy val list: List[Tagged[_]] = ComplexTypeOps.complexTypeToList(decl)
   def particles(implicit lookup: Lookup, targetNamespace: Option[URI], scope: NamespaceBinding) =
     ComplexTypeOps.complexTypeToParticles(decl)
+
+  def primaryCompositor: Option[Tagged[KeyedGroup]] =
+    ComplexTypeOps.primaryCompositor(decl)
+
+  def primarySequence: Option[Tagged[KeyedGroup]] =
+    ComplexTypeOps.primarySequence(decl)
 }
 
 object ComplexTypeOps {
+  import Defs._
+
   def complexTypeToList(decl: Tagged[XComplexType]): List[Tagged[_]] = {
     implicit val tag = decl.tag
 
@@ -277,8 +288,8 @@ object ComplexTypeOps {
           List(Tagged(any.copy(
             minOccurs = math.min(any.minOccurs, seq.minOccurs),
             maxOccurs = lookup.max(any.maxOccurs, seq.maxOccurs)), tagged.tag))
-        case DataRecord(_, Some("choice"), choice: XExplicitGroup) =>
-          List(Tagged(KeyedGroup("choice", choice.copy(
+        case DataRecord(_, Some(ChoiceTag), choice: XExplicitGroup) =>
+          List(Tagged(KeyedGroup(ChoiceTag, choice.copy(
             minOccurs = math.min(choice.minOccurs, seq.minOccurs),
             maxOccurs = lookup.max(choice.maxOccurs, seq.maxOccurs)) ), tagged.tag))
 
@@ -299,7 +310,7 @@ object ComplexTypeOps {
    * <li>if the base is a simple type, it will always return <code>Tagged[XSimpleType]</code></li>
    */
   def complexTypeToParticles(decl: Tagged[XComplexType])
-    (implicit lookup: Lookup, targetNamespace: Option[URI], scope: NamespaceBinding): List[Tagged[Any]] = {
+    (implicit lookup: Lookup, targetNamespace: Option[URI], scope: NamespaceBinding): List[Tagged[_]] = {
     import lookup._
     implicit val tag = decl.tag
 
@@ -385,6 +396,30 @@ object ComplexTypeOps {
         } getOrElse {Nil}
     }
 
+  }
+
+  def primarySequence(decl: Tagged[XComplexType]): Option[Tagged[KeyedGroup]] =
+    primaryCompositor(decl) match {
+      case x@Some(TaggedKeyedGroup(g, tag)) if g.key == SequenceTag => x
+      case _ => None
+    }
+
+  def primaryCompositor(decl: Tagged[XComplexType]): Option[Tagged[KeyedGroup]] = {
+    def extract(model: Option[DataRecord[Any]]) = model match {
+      // XTypeDefParticleOption is either XGroupRef or XExplicitGroupable
+      case Some(DataRecord(_, Some(key), x: XGroupRef))          => Some(Tagged(KeyedGroup(key, x), decl.tag))
+      case Some(DataRecord(_, Some(key), x: XExplicitGroupable)) => Some(Tagged(KeyedGroup(key, x), decl.tag))
+      case _ => None
+    }
+
+    decl.value.arg1.value match {
+      case XComplexContent(_, DataRecord(_, _, x: XComplexRestrictionType), _, _, _) =>
+        extract(x.xrestrictiontypableoption)
+      case XComplexContent(_, DataRecord(_, _, x: XExtensionType), _, _, _)          => extract(x.arg1)
+      case XSimpleContent(_, _, _, _)                                                => None
+      // this is an abbreviated form of xs:anyType restriction.
+      case XComplexTypeModelSequence1(arg1, arg2)                                    => extract(arg1)
+    }
   }
 }
 
