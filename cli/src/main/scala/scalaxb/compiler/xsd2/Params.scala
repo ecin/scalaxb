@@ -69,11 +69,11 @@ trait Params extends Lookup {
     // tagged can be Tagged[XSimpleType], Tagged[BuiltInSymbol], Tagged[XElement], Tagged[KeyedGroup],
     // Tagged[XAny].
     private def buildParam(tagged: Tagged[Any], postfix: Int) = tagged match {
-      case TaggedSimpleType(decl, tag)  => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
-      case TaggedSymbol(symbol, tag)    => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
-      case x: TaggedElement             => buildElementParam(x)
-      case TaggedKeyedGroup(group, tag) => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
-      case x: TaggedAny                 => buildAnyParam(x, postfix)
+      case TaggedSimpleType(decl, tag) => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+      case TaggedSymbol(symbol, tag)   => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+      case x: TaggedElement            => buildElementParam(x)
+      case x: TaggedKeyedGroup         => buildCompositorParam(x)
+      case x: TaggedAny                => buildAnyParam(x, postfix)
       case _ => error("buildParam: " + tagged)
     }
 
@@ -94,6 +94,11 @@ trait Params extends Lookup {
       val retval = Param(tagged.tag.namespace, name, typesymbol, Occurrence(elem), false)
       log("Params#buildElementParam:  " + retval.toString)
       retval
+    }
+
+    private def buildCompositorParam(tagged: Tagged[KeyedGroup]): Param = {
+
+      Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
     }
 
     private def buildAnyParam(tagged: Tagged[XAny], postfix: Int): Param = {

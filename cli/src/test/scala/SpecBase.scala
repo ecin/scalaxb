@@ -1,6 +1,12 @@
 import org.specs._
 
 trait SpecBase extends Specification {
+  doBeforeSpec {
+    val module = new scalaxb.compiler.xsd2.Driver // with Verbose
+    // val module = new scalaxb.compiler.xsd.Driver // with Verbose
+    GlobalCache.cache("general") = module.processString(schemaString, "general")
+  }
+
   val schemaString = """<?xml version='1.0' encoding='UTF-8'?>
 <xs:schema targetNamespace="http://www.example.com/general"
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
@@ -414,4 +420,8 @@ trait SpecBase extends Specification {
     <xs:attribute name="class" type="xs:NMTOKENS"/>
   </xs:attributeGroup>
 </xs:schema>"""
+}
+
+object GlobalCache {
+  val cache = scala.collection.mutable.Map.empty[String, List[String]]
 }
