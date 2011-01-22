@@ -44,7 +44,7 @@ object IncTest extends SpecBase {
   } // local element
 
   "choices in a complex type" should {
-    "generate a trait named %A%Option[n]" >> {
+    "generate a trait named FooOption*" >> {
       entitySource must include("trait ChoiceComplexTypeTestOption")
     }
   } // choices
@@ -125,6 +125,14 @@ object IncTest extends SpecBase {
       entitySource must find(expectedComplexTypeTest)
     }
 
+    val expectedChoiceTest =
+      """case class ChoiceComplexTypeTest\(choicecomplextypetestoption: scalaxb.DataRecord\[ChoiceComplexTypeTestOption\],\s*
+        |\s*choicecomplextypetestoption2: Option\[scalaxb.DataRecord\[ChoiceComplexTypeTestOption2\]\],\s*""".stripMargin
+
+    "map choice param to DataRecord[FooOption] if the choices consists only of complex types" >> {
+      entitySource must find(expectedChoiceTest)
+    }
+
     val exptectedAnyTest =
       """case class AnyTest2\(any: Option\[scalaxb\.DataRecord\[Any\]\],\s*
         |\s*foo: String,\s*
@@ -132,7 +140,7 @@ object IncTest extends SpecBase {
         |\s*foo2: String,\s*
         |\s*any3: Seq\[scalaxb\.DataRecord\[Any\]\]\)""".stripMargin
 
-    "map wildcard param to DataRecord[Any]" >> {
+    "map wildcard param to DataRecord[Any] named any*" >> {
       entitySource must find(exptectedAnyTest)
     }
 

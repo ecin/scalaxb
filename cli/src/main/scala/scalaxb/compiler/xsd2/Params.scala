@@ -1,7 +1,8 @@
 package scalaxb.compiler.xsd2
 
+import scalaxb._
 import xmlschema._
-import scalaxb.compiler.xsd.{XsAny, BuiltInSimpleTypeSymbol, XsTypeSymbol, XsInt}
+import scalaxb.compiler.xsd.{XsAnyType, BuiltInSimpleTypeSymbol, XsTypeSymbol, XsInt}
 import Defs._
 import java.net.URI
 
@@ -19,6 +20,31 @@ trait Params extends Lookup {
 
     def apply(any: XAny): Occurrence =
       Occurrence(any.minOccurs, any.maxOccurs, false)
+
+    def apply(particle: DataRecord[XParticleOption]): Occurrence = particle match {
+      case DataRecord(_, _, x: XElement)               => Occurrence(x)
+      case DataRecord(_, _, x: XAny)                   => Occurrence(x)
+      case DataRecord(_, Some("group"), x: XGroup)     => Occurrence(KeyedGroup("group", x))
+      case DataRecord(_, Some("all"), x: XGroup)       => Occurrence(KeyedGroup("all", x))
+      case DataRecord(_, Some("choice"), x: XGroup)    => Occurrence(KeyedGroup("choice", x))
+      case DataRecord(_, Some("sequence"), x: XGroup)  => Occurrence(KeyedGroup("sequence", x))
+    }
+
+    def apply(keyed: KeyedGroup): Occurrence = keyed.key match {
+      case GroupTag =>
+        // TODO: fix this
+        Occurrence(keyed.group.minOccurs, keyed.group.maxOccurs, false)
+      case ChoiceTag =>
+        val choice = keyed.group
+        val o = Occurrence(choice.minOccurs, choice.maxOccurs, false)
+        val particleOs = choice.arg1.toList map {Occurrence(_)}
+        Occurrence((o.minOccurs :: (particleOs map { _.minOccurs})).min,
+          (o.maxOccurs :: (particleOs map { _.maxOccurs})).max,
+          particleOs exists {_.nillable})
+      case _ =>
+        Occurrence(keyed.group.minOccurs, keyed.group.maxOccurs, false)
+    }
+
   }
 
   val SingleNotNillable = Occurrence(1, 1, false)
@@ -97,8 +123,10 @@ trait Params extends Lookup {
     }
 
     private def buildCompositorParam(tagged: Tagged[KeyedGroup]): Param = {
-
-      Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
+      val compositor = tagged.value
+      val name = names.get(tagged) map {_.toLowerCase} getOrElse {"??"}
+      val typeSymbol = TaggedDataRecordSymbol(DataRecordSymbol(tagged))
+      Param(tagged.tag.namespace, name, typeSymbol, Occurrence(compositor), false)
     }
 
     private def buildAnyParam(tagged: Tagged[XAny], postfix: Int): Param = {

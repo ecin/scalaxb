@@ -4,13 +4,13 @@ import java.net.{URI}
 import javax.xml.namespace.{QName}
 import xmlschema._
 import scalaxb.compiler.{ScalaNames, Logger, Config, Snippet, ReferenceNotFound}
-import scalaxb.compiler.xsd.{XsAny, XsString, BuiltInSimpleTypeSymbol, XsTypeSymbol}
+import scalaxb.compiler.xsd.{XsAnyType, XsString, BuiltInSimpleTypeSymbol, XsTypeSymbol}
 import Defs._
 import scala.xml.{NamespaceBinding}
 
 case class QualifiedName(namespace: Option[URI], localPart: String) {
   def toScalaCode(implicit targetNamespace: Option[URI], lookup: Lookup): String =
-    if (namespace == targetNamespace || namespace.isEmpty) localPart
+    if (namespace == targetNamespace || namespace.isEmpty || namespace == Some(XML_SCHEMA_URI)) localPart
     else lookup.packageName(namespace) + "." + localPart
 }
 
@@ -38,10 +38,14 @@ trait Lookup extends ContextProcessor {
   implicit def targetNamespace = schema.targetNamespace
 
   def buildTypeName(tagged: Tagged[Any]): QualifiedName = tagged match {
+    case x: TaggedDataRecordSymbol =>
+      val member = buildTypeName(x.value.member)
+      QualifiedName(Some(SCALAXB_URI), "DataRecord[%s]".format(member.toScalaCode))
+
     case x: TaggedAny => QualifiedName(Some(SCALAXB_URI), "DataRecord[Any]")
     case x: TaggedSymbol =>
       x.value match {
-        case XsAny                           => QualifiedName(Some(SCALAXB_URI), "DataRecord[Any]")
+        case XsAnyType                       => QualifiedName(Some(SCALAXB_URI), "DataRecord[Any]")
         case symbol: BuiltInSimpleTypeSymbol => QualifiedName(None, symbol.name)
       }
     case x: TaggedSimpleType => buildSimpleTypeTypeName(x)
@@ -131,7 +135,7 @@ trait Lookup extends ContextProcessor {
 
   object AnyType {
     def unapply(typeName: QualifiedName): Option[Tagged[XsTypeSymbol]] = typeName match {
-      case XS_ANY_TYPE => Some(Tagged(XsAny, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, "anyType")))
+      case XS_ANY_TYPE => Some(Tagged(XsAnyType, HostTag(Some(XML_SCHEMA_URI), SimpleTypeHost, "anyType")))
       case _ => None
     }
   }

@@ -41,6 +41,8 @@ object Defs {
   val NL = System.getProperty("line.separator")
 
   val XS_ANY_TYPE = QualifiedName(XML_SCHEMA_URI, "anyType")
+
+  val GroupTag = "group"
   val ChoiceTag = "choice"
   val SequenceTag = "sequence"
   val AllTag = "all"
@@ -108,6 +110,14 @@ case class TaggedAttribute(value: XAttributable, tag: HostTag) extends Tagged[XA
 case class TaggedAny(value: XAny, tag: HostTag) extends Tagged[XAny] {}
 case class TaggedSymbol(value: XsTypeSymbol, tag: HostTag) extends Tagged[XsTypeSymbol] {}
 case class TaggedEnum(value: XNoFixedFacet, tag: HostTag) extends Tagged[XNoFixedFacet] {}
+case class TaggedDataRecordSymbol(value: DataRecordSymbol) extends Tagged[DataRecordSymbol] {
+  import Defs._
+  val tag = HostTag(Some(SCALAXB_URI), SimpleTypeHost, "DataRecord")
+}
+
+case class DataRecordSymbol(member: Tagged[Any]) extends XsTypeSymbol {
+  val name = "DataRecordSymbol(" + member + ")"
+}
 
 class SchemaOps(val schema: XSchema) extends immutable.LinearSeq[Tagged[_]] {
   lazy val length: Int = list.length
