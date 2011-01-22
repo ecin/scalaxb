@@ -127,7 +127,7 @@ object IncTest extends SpecBase {
 
     val expectedChoiceTest =
       """case class ChoiceComplexTypeTest\(choicecomplextypetestoption: scalaxb.DataRecord\[ChoiceComplexTypeTestOption\],\s*
-        |\s*choicecomplextypetestoption2: Option\[scalaxb.DataRecord\[ChoiceComplexTypeTestOption2\]\],\s*""".stripMargin
+        |\s*choicecomplextypetestoption2: scalaxb.DataRecord\[Option\[ChoiceComplexTypeTestOption2\]\],\s*""".stripMargin
 
     "map choice param to DataRecord[FooOption] if the choices consists only of complex types" >> {
       entitySource must find(expectedChoiceTest)
