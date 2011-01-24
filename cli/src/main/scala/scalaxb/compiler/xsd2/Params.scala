@@ -51,6 +51,7 @@ trait Params extends Lookup {
       case TaggedSimpleType(decl, tag) => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
       case TaggedSymbol(symbol, tag)   => Param(tagged.tag.namespace, tagged.tag.name, tagged, SingleNotNillable, false)
       case x: TaggedElement            => buildElementParam(x)
+      case x: TaggedKeyedGroup if x.key == ChoiceTag => buildChoiceParam(x)
       case x: TaggedKeyedGroup         => buildCompositorParam(x)
       case x: TaggedAny                => buildAnyParam(x, postfix)
       case _ => error("buildParam: " + tagged)
@@ -75,15 +76,44 @@ trait Params extends Lookup {
       retval
     }
 
+    private def buildChoiceParam(tagged: Tagged[KeyedGroup]): Param = {
+      implicit val tag = tagged.tag
+      val choice = tagged.value
+      val name = names.get(tagged) map {_.toLowerCase} getOrElse {"??"}
+      val particles = choice.particles
+
+      val memberType = choice.particles match {
+        case Nil       => TaggedXsAnyType
+        case x :: xs =>
+          val sameType = x match {
+            case elem: TaggedElement =>
+              val firstType = particleType(x)
+              if (xs forall { particleType(_) == firstType }) firstType
+              else None
+            case _ => None
+          }
+
+          sameType getOrElse {
+            if ( (particles forall { !isForeignType(_) }) &&
+              (particles forall { isOptionDescendant }) ) tagged
+            else TaggedXsAnyType
+          }
+      }
+      val typeSymbol = TaggedDataRecordSymbol(DataRecordSymbol(memberType))
+      Param(tagged.tag.namespace, name, typeSymbol,
+        Occurrence(choice).copy(nillable = false), false)
+    }
+
+    private def particleType(particle: Tagged[_]) = particle match {
+      case elem: TaggedElement => Some(elem.typeStructure)
+      case _ => None
+    }
+
     private def buildCompositorParam(tagged: Tagged[KeyedGroup]): Param = {
       val compositor = tagged.value
       val name = names.get(tagged) map {_.toLowerCase} getOrElse {"??"}
-      val typeSymbol = TaggedDataRecordSymbol(DataRecordSymbol(tagged))
-      val occurrence = tagged.key match {
-        case ChoiceTag => Occurrence(compositor).copy(nillable =  false)
-        case _         => Occurrence(compositor)
-      }
-      Param(tagged.tag.namespace, name, typeSymbol, occurrence, false)
+      val typeSymbol = tagged
+      Param(tagged.tag.namespace, name, typeSymbol, Occurrence(compositor), false)
     }
 
     private def buildAnyParam(tagged: Tagged[XAny], postfix: Int): Param = {

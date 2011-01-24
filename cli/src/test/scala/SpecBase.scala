@@ -89,6 +89,10 @@ trait SpecBase extends Specification {
         <xs:element name="person6" nillable="true" type="gen:Person"/>
         <xs:element name="address6" nillable="true" type="gen:Address"/>
       </xs:choice>
+      <xs:choice>
+        <xs:element name="int1" type="xs:int"/>
+        <xs:element name="int2" type="xs:int"/>
+      </xs:choice>
     </xs:sequence>
   </xs:complexType>
 
@@ -288,7 +292,7 @@ trait SpecBase extends Specification {
     <xs:complexType>
       <xs:sequence>
         <xs:choice maxOccurs="unbounded">
-          <xs:element name="foo" type="string"/>
+          <xs:element name="foo" type="xs:string"/>
           <xs:any namespace="##other" processContents="lax" />
         </xs:choice>
       </xs:sequence>

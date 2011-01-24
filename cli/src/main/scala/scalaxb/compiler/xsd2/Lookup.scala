@@ -18,7 +18,7 @@ case class QualifiedName(namespace: Option[URI], localPart: String) {
 object QualifiedName {
   def apply(namespace: URI, name: String): QualifiedName = QualifiedName(Some(namespace), name)
 
-  implicit def fromQName(value: QName)(implicit targetNamespace: Option[URI], scope: NamespaceBinding) =
+  implicit def apply(value: QName)(implicit targetNamespace: Option[URI], scope: NamespaceBinding) =
     splitTypeName(value.toString)
 
   def splitTypeName(name: String)(implicit targetNamespace: Option[URI], scope: NamespaceBinding): QualifiedName =
@@ -111,11 +111,8 @@ trait Lookup extends ContextProcessor {
           }
           else QualifiedName(tagged.tag.namespace, names.get(x) getOrElse {"??"})
 
-
         case _ => QualifiedName(tagged.tag.namespace, names.get(x) getOrElse {"??"})
       }
-
-
 
 //    case XsNillableAny  => "scalaxb.DataRecord[Option[Any]]"
 //    case XsLongAll      => "Map[String, scalaxb.DataRecord[Any]]"
@@ -159,14 +156,14 @@ trait Lookup extends ContextProcessor {
 
   def baseType(decl: Tagged[XSimpleType]): Tagged[Any] = decl.value.arg1.value match {
     case XRestriction(_, _, _, Some(base), _) if containsEnumeration(decl) =>
-      QualifiedName.fromQName(base) match {
+      QualifiedName(base) match {
         case BuiltInType(tagged) => decl
         case SimpleType(tagged)  =>
           if (containsEnumeration(tagged)) baseType(tagged)
           else decl
       }
     case XRestriction(_, _, _, Some(base), _) =>
-      QualifiedName.fromQName(base) match {
+      QualifiedName(base) match {
         case BuiltInType(tagged) => tagged
         case SimpleType(tagged)  => baseType(tagged)
       }
@@ -176,7 +173,7 @@ trait Lookup extends ContextProcessor {
     case XRestriction(_, XSimpleRestrictionModelSequence(Some(simpleType), _), _, _, _) =>
       baseType(Tagged(simpleType, decl.tag))
     case XList(_, _, _, Some(itemType), _) =>
-      QualifiedName.fromQName(itemType) match {
+      QualifiedName(itemType) match {
         case BuiltInType(tagged) => tagged
         case SimpleType(tagged)  => baseType(tagged)
       }
@@ -212,7 +209,7 @@ trait Lookup extends ContextProcessor {
   object SimpleType {
     def unapply(typeName: QualifiedName): Option[Tagged[XSimpleType]] = typeName match {
       case QualifiedName(targetNamespace, localPart) if schema.topTypes contains localPart =>
-        schema.topTypes(typeName.localPart) match {
+        schema.topTypes(localPart) match {
           case x: TaggedSimpleType => Some(x)
           case _ => None
         }
@@ -223,7 +220,7 @@ trait Lookup extends ContextProcessor {
   object ComplexType {
     def unapply(typeName: QualifiedName): Option[Tagged[XComplexType]] = typeName match {
       case QualifiedName(targetNamespace, localPart) if schema.topTypes contains localPart =>
-        schema.topTypes(typeName.localPart) match {
+        schema.topTypes(localPart) match {
           case x: TaggedComplexType => Some(x)
           case _ => None
         }
@@ -231,7 +228,36 @@ trait Lookup extends ContextProcessor {
     }
   }
 
+  object Element {
+    def unapply(qualifiedName: QualifiedName): Option[Tagged[XElement]] = qualifiedName match {
+      case QualifiedName(targetNamespace, localPart) if schema.topElems contains localPart =>
+        Some(schema.topElems(localPart))
+      case _ => None
+    }
+
+  }
+
   def splitLongSequence(tagged: Tagged[KeyedGroup]): List[Tagged[KeyedGroup]] = List(tagged)
+
+  def isForeignType(tagged: Tagged[_]): Boolean = tagged match {
+    case x: TaggedElement    => x.value.ref map { QualifiedName(_).namespace != targetNamespace } getOrElse {false}
+    case x: TaggedKeyedGroup if x.value.key == GroupTag =>
+      x.value.group.ref map { QualifiedName(_).namespace != targetNamespace } getOrElse {false}
+    case _ => false
+  }
+
+  def isOptionDescendant(tagged: Tagged[_]): Boolean = tagged match {
+    case x: TaggedElement =>
+      x.typeStructure match {
+        case decl: TaggedComplexType => true
+        case _ => false
+      }
+    case x: TaggedKeyedGroup if x.value.key == ChoiceTag =>
+      implicit val tag = x.tag
+      x.value.particles forall {isOptionDescendant}
+    case x: TaggedKeyedGroup if x.value.key == SequenceTag => true
+    case _ => false
+  }
 
   def max(lhs: String, rhs: String): String =
     if (lhs == "unbounded" || rhs == "unbounded") "unbounded"

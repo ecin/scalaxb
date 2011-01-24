@@ -25,13 +25,14 @@ package scalaxb.compiler.xsd2
 import java.net.{URI}
 import scala.xml.{NamespaceBinding}
 import scalaxb._
-import scalaxb.compiler.xsd.{XsTypeSymbol}
+import scalaxb.compiler.xsd.{XsTypeSymbol, XsAnyType}
 import xmlschema._
 import scala.collection.immutable
 
 object Defs {
   implicit def schemaToSchemaOps(schema: XSchema): SchemaOps = new SchemaOps(schema)
-  implicit def complexTypeToComplexTypeOps(decl: Tagged[XComplexType]): ComplexTypeOps = new ComplexTypeOps(decl)
+  implicit def complexTypeToComplexTypeOps(tagged: Tagged[XComplexType]): ComplexTypeOps = new ComplexTypeOps(tagged)
+  implicit def elementToElementOps(tagged: Tagged[XElement]): ElementOps = new ElementOps(tagged)
   val XML_SCHEMA_URI = new URI("http://www.w3.org/2001/XMLSchema")
   val XSI_URL = new URI("http://www.w3.org/2001/XMLSchema-instance")
   val XSI_PREFIX = "xsi"
@@ -71,12 +72,44 @@ object HostTag {
       HostTag(namespace, AttributeGroupHost, group.name getOrElse {error("name is required.")})
 }
 
-case class KeyedGroup(key: String, group: XGroup)
+case class KeyedGroup(key: String, group: XGroup) {
+  import Defs._
+
+  // List of TaggedElement, TaggedKeyedGroup, or TaggedAny.
+  def particles(implicit tag: HostTag, lookup: Lookup): List[Tagged[_]] =
+    group.arg1.toList flatMap {
+      case DataRecord(_, _, x: XLocalElementable) => List(Tagged(x, tag))
+      case DataRecord(_, Some(particleKey), x: XGroupRef) => List(Tagged(KeyedGroup(particleKey, x), tag))
+      case DataRecord(_, Some(particleKey), x: XExplicitGroupable) =>
+        if (particleKey == SequenceTag) KeyedGroup(particleKey, x).innerSequenceToParticles
+        else List(Tagged(KeyedGroup(particleKey, x), tag))
+      case DataRecord(_, _, x: XAny) => List(Tagged(x, tag))
+    }
+
+  private def innerSequenceToParticles(implicit tag: HostTag, lookup: Lookup): List[Tagged[_]] =
+    if (group.minOccurs != 1 || group.maxOccurs != "1")
+      if (group.arg1.length == 1) group.arg1(0) match {
+        case DataRecord(_, Some(particleKey), any: XAny) =>
+          List(Tagged(any.copy(
+            minOccurs = math.min(any.minOccurs, group.minOccurs),
+            maxOccurs = lookup.max(any.maxOccurs, group.maxOccurs)), tag))
+        case DataRecord(_, Some(ChoiceTag), choice: XExplicitGroup) =>
+          List(Tagged(KeyedGroup(ChoiceTag, choice.copy(
+            minOccurs = math.min(choice.minOccurs, group.minOccurs),
+            maxOccurs = lookup.max(choice.maxOccurs, group.maxOccurs)) ), tag))
+
+        case _ => List(Tagged(this, tag))
+      }
+      else List(Tagged(this, tag))
+    else lookup.splitLongSequence(Tagged(this, tag))
+}
+
 trait Tagged[+A] {
   def value: A
   def tag: HostTag
   override def toString: String = "Tagged(%s, %s)".format(value.toString, tag.toString)
 }
+
 object Tagged {
   def apply(value: XSimpleType, tag: HostTag): Tagged[XSimpleType] = TaggedSimpleType(value, tag)
   def apply(value: XComplexType, tag: HostTag): Tagged[XComplexType] = TaggedComplexType(value, tag)
@@ -114,6 +147,7 @@ case class TaggedDataRecordSymbol(value: DataRecordSymbol) extends Tagged[DataRe
   import Defs._
   val tag = HostTag(Some(SCALAXB_URI), SimpleTypeHost, "DataRecord")
 }
+object TaggedXsAnyType extends TaggedSymbol(XsAnyType, HostTag(Some(Defs.SCALAXB_URI), SimpleTypeHost, "anyType"))
 
 case class DataRecordSymbol(member: Tagged[Any]) extends XsTypeSymbol {
   val name = "DataRecordSymbol(" + member + ")"
@@ -289,26 +323,6 @@ object ComplexTypeOps {
     })
   }
 
-  def innerSequenceToParticles(tagged: Tagged[KeyedGroup])
-    (implicit lookup: Lookup, targetNamespace: Option[URI], scope: NamespaceBinding): List[Tagged[Any]] = {
-    val seq = tagged.value.group
-    if (seq.minOccurs != 1 || seq.maxOccurs != "1")
-      if (seq.arg1.length == 1) seq.arg1(0) match {
-        case DataRecord(_, Some(particleKey), any: XAny) =>
-          List(Tagged(any.copy(
-            minOccurs = math.min(any.minOccurs, seq.minOccurs),
-            maxOccurs = lookup.max(any.maxOccurs, seq.maxOccurs)), tagged.tag))
-        case DataRecord(_, Some(ChoiceTag), choice: XExplicitGroup) =>
-          List(Tagged(KeyedGroup(ChoiceTag, choice.copy(
-            minOccurs = math.min(choice.minOccurs, seq.minOccurs),
-            maxOccurs = lookup.max(choice.maxOccurs, seq.maxOccurs)) ), tagged.tag))
-
-        case _ => List(tagged)
-      }
-      else List(tagged)
-    else lookup.splitLongSequence(tagged)
-  }
-
   /** particles of the given decl flattened one level.
    * returns list of Tagged[XSimpleType], Tagged[BuiltInSimpleTypeSymbol], Tagged[XElement], Tagged[KeyedGroup],
    * Tagged[XAny].
@@ -324,21 +338,8 @@ object ComplexTypeOps {
     import lookup._
     implicit val tag = decl.tag
 
-    def processInnerParticle(particleKey: String, particle: XParticleOption) =
-      particle match {
-        case x: XLocalElementable  => List(Tagged(x, tag))
-        case x: XGroupRef          => List(Tagged(KeyedGroup(particleKey, x), tag))
-        case x: XExplicitGroupable =>
-          if (particleKey == "sequence") innerSequenceToParticles(Tagged(KeyedGroup(particleKey, x), tag))
-          else List(Tagged(KeyedGroup(particleKey, x), tag))
-        case x: XAny               => List(TaggedAny(x, tag))
-      }
-
-    def toParticles(group: KeyedGroup): List[Tagged[Any]] =
-      if (group.key == "sequence") (group.group.arg1.toList.flatMap {
-        case DataRecord(_, Some(particleKey), x: XParticleOption) => processInnerParticle(particleKey, x)
-        case _ => Nil
-      })
+    def toParticles(group: KeyedGroup): List[Tagged[_]] =
+      if (group.key == "sequence") group.particles
       else List(Tagged(group, tag))
 
     def processRestriction(restriction: XRestrictionTypable) = {
@@ -437,5 +438,23 @@ object Compositor {
   def unapply(value: Tagged[_]): Option[TaggedKeyedGroup] = value match {
     case x: TaggedKeyedGroup if List("choice", "all", "sequence") contains x.value.key => Some(x)
     case _ => None
+  }
+}
+
+class ElementOps(val tagged: Tagged[XElement]) {
+  def typeStructure(implicit lookup: Lookup): Tagged[_] = {
+    import lookup._
+    val elem = tagged.value.ref match {
+      case Some(Element(x)) => x.value
+      case _ => tagged.value
+    }
+    val typeValue = elem.typeValue map { resolveType(_) }
+    val localType = elem.xelementoption map { _ match {
+      case DataRecord(_, _, x: XLocalSimpleType)  => Tagged(x, tagged.tag)
+      case DataRecord(_, _, x: XLocalComplexType) => Tagged(x, tagged.tag)
+    }}
+    typeValue getOrElse {
+      localType getOrElse {error("ElementOps#typeStructure: type was not defined " + tagged)}
+    }
   }
 }

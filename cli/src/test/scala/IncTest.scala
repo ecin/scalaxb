@@ -127,11 +127,26 @@ object IncTest extends SpecBase {
 
     val expectedChoiceTest =
       """case class ChoiceComplexTypeTest\(choicecomplextypetestoption: scalaxb.DataRecord\[ChoiceComplexTypeTestOption\],\s*
-        |\s*choicecomplextypetestoption2: scalaxb.DataRecord\[Option\[ChoiceComplexTypeTestOption2\]\],\s*""".stripMargin
+        |\s*choicecomplextypetestoption2: scalaxb.DataRecord\[Option\[ChoiceComplexTypeTestOption2\]\],\s*
+        |\s*choicecomplextypetestoption3: Option\[scalaxb.DataRecord\[ChoiceComplexTypeTestOption3\]\],\s*
+        |\s*choicecomplextypetestoption4: Option\[scalaxb.DataRecord\[Option\[ChoiceComplexTypeTestOption4\]\]\],\s*
+        |\s*choicecomplextypetestoption5: Seq\[scalaxb.DataRecord\[ChoiceComplexTypeTestOption5\]\],\s*
+        |\s*choicecomplextypetestoption6: Seq\[scalaxb.DataRecord\[Option\[ChoiceComplexTypeTestOption6\]\]\],\s*
+        |\s*choicecomplextypetestoption7: scalaxb.DataRecord\[Int\]\)\s*
+        |""".stripMargin
 
-    "map choice param to DataRecord[FooOption] if the choices consists only of complex types" >> {
+    "map choice param to DataRecord[FooOption] if it's made of non-nillable complex type element" >> {
       entitySource must find(expectedChoiceTest)
     }
+
+    "map choice param to DataRecord[Option[FooOption]] if it's made of complex types, some nillable" >> {
+      entitySource must find(expectedChoiceTest)
+    }
+
+    "map choice param to DataRecord[Int] if it's made of xs:int" >> {
+      entitySource must find(expectedChoiceTest)
+    }
+
 
     val exptectedAnyTest =
       """case class AnyTest2\(any: Option\[scalaxb\.DataRecord\[Any\]\],\s*
