@@ -25,7 +25,7 @@ package scalaxb.compiler.xsd2
 import java.io.{Reader, PrintWriter}
 import java.net.{URI}
 import scala.xml.{Node, Elem}
-import scalaxb.compiler.{Module, Config, Snippet}
+import scalaxb.compiler.{Module, Config, Snippet, CustomXML}
 import scalaxb._
 import Scalaxb._
 import xmlschema._
@@ -37,6 +37,7 @@ class Driver extends Module { driver =>
 
   type Schema = ReferenceSchema
   type Context = SchemaContext
+  type RawSchema = scala.xml.Node
 
   def generate(schema: Schema, context: Context, config: Config): Snippet =
     new Generator(schema, driver, context, config).generateEntitySource
@@ -44,12 +45,11 @@ class Driver extends Module { driver =>
   def generateProtocol(snippet: Snippet,
     context: Context, config: Config): Seq[Node] = Seq(<source/>)
 
-  def toImportable(alocation: URI, ain: Reader, aout: PrintWriter): Importable = {
+  def toImportable(alocation: URI, rawschema: RawSchema, aout: PrintWriter): Importable = {
     new Importable {
-      val reader: Reader = ain
+      val raw: RawSchema = rawschema
       val out: PrintWriter = aout
       val location: URI = alocation
-      lazy val elem = CustomXML.load(reader)
 
       def targetNamespace: Option[String] = None
       def importNamespaces: Seq[String] = Nil
@@ -57,9 +57,9 @@ class Driver extends Module { driver =>
       def includeLocations: Seq[String] = Nil
 
       def toSchema(context: Context): Schema = {
-        val unbound = fromXML[XSchema](elem)
+        val unbound = fromXML[XSchema](raw)
         // log("Driver.toSchema: " + unbound.toString())
-        val wrapped = ReferenceSchema.fromSchema(unbound, elem.scope)
+        val wrapped = ReferenceSchema.fromSchema(unbound, raw.scope)
         log("Driver.toSchema: " + wrapped.toString)
         wrapped
       }
@@ -79,14 +79,7 @@ class Driver extends Module { driver =>
     // do nothing.
   }
 
-  object CustomXML extends XMLLoader[Elem] {
-    override def parser: SAXParser = {
-      val factory = javax.xml.parsers.SAXParserFactory.newInstance()
-      factory.setFeature("http://xml.org/sax/features/validation", false)
-      factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", false)
-      factory.setFeature("http://apache.org/xml/features/nonvalidating/load-dtd-grammar", false)
-      factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-      factory.newSAXParser()
-    }
-  }
+  def readerToRawSchema(reader: Reader): RawSchema = CustomXML.load(reader)
+
+  def nodeToRawSchema(node: Node) = node
 }
