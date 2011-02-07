@@ -198,8 +198,12 @@ object IncTest extends Specification {
       </xs:complexType>
     </xs:schema>, "example")(0)
 
-    "be referenced as its base trait" >> {
+    "not generate its own trait" >> {
       println(entitySource)
+      entitySource mustNot find("""SimpleTypeTestWHOLE""")
+    }
+
+    "be referenced as its base trait" >> {
       entitySource must find("""milk2: MilkType""")
     }
   } // enum restriction

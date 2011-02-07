@@ -33,7 +33,7 @@ class Generator(val schema: ReferenceSchema, val logger: Logger,
       headerSnippet ::
       (schema.unbound flatMap {
         case x: TaggedComplexType => processComplexType(x)
-        case x: TaggedSimpleType if containsEnumeration(x) => processSimpleType(x)
+        case x: TaggedSimpleType if containsEnumeration(x) && isRootEnumeration(x) => processSimpleType(x)
         case _ => Nil
       }).toList: _*)
 

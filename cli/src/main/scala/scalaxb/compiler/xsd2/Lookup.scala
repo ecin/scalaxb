@@ -154,6 +154,19 @@ trait Lookup extends ContextProcessor {
     }
   }
 
+  def isRootEnumeration(tagged: Tagged[XSimpleType]): Boolean =
+    if (!containsEnumeration(tagged)) false
+    else tagged.value.arg1.value match {
+      case XRestriction(_, _, _, Some(base), _) =>
+        QualifiedName(base) match {
+          case BuiltInType(tagged) => true
+          case SimpleType(tagged)  => !containsEnumeration(tagged)
+        }
+      case XRestriction(_, XSimpleRestrictionModelSequence(Some(simpleType), _), _, _, _) =>
+        !containsEnumeration(Tagged(simpleType, tagged.tag))
+      case _ => false
+    }
+
   def baseType(decl: Tagged[XSimpleType]): Tagged[Any] = decl.value.arg1.value match {
     case XRestriction(_, _, _, Some(base), _) if containsEnumeration(decl) =>
       QualifiedName(base) match {
