@@ -91,11 +91,11 @@ case class KeyedGroup(key: String, group: XGroup) {
       if (group.arg1.length == 1) group.arg1(0) match {
         case DataRecord(_, Some(particleKey), any: XAny) =>
           List(Tagged(any.copy(
-            minOccurs = math.min(any.minOccurs, group.minOccurs),
+            minOccurs = math.min(any.minOccurs.toLong, group.minOccurs.toLong),
             maxOccurs = lookup.max(any.maxOccurs, group.maxOccurs)), tag))
         case DataRecord(_, Some(ChoiceTag), choice: XExplicitGroup) =>
           List(Tagged(KeyedGroup(ChoiceTag, choice.copy(
-            minOccurs = math.min(choice.minOccurs, group.minOccurs),
+            minOccurs = math.min(choice.minOccurs.toLong, group.minOccurs.toLong),
             maxOccurs = lookup.max(choice.maxOccurs, group.maxOccurs)) ), tag))
 
         case _ => List(Tagged(this, tag))

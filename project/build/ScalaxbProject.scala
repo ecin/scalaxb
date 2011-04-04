@@ -10,7 +10,7 @@ class ScalaxbProject(info: ProjectInfo) extends ParentProject(info) {
   lazy val cli = project("cli", "scalaxb", new CliProject(_))
   
   class CliProject(info: ProjectInfo) extends DefaultProject(info) with VersionFileTask
-      with ScalaBazaarTask with posterous.Publish with TestProject {
+      with ScalaBazaarTask with posterous.Publish with TestProject with scalaxb.ScalaxbPlugin {
     val scopt = "com.github.scopt" %% "scopt" % "1.0.0-SNAPSHOT"    
     val launch = "org.scala-tools.sbt" % "launcher-interface" % "0.7.4" % "provided" from (
       "http://databinder.net/repo/org.scala-tools.sbt/launcher-interface/0.7.4/jars/launcher-interface.jar")
@@ -19,6 +19,8 @@ class ScalaxbProject(info: ProjectInfo) extends ParentProject(info) {
     override def bazaarPackageBaseURL = "http://cloud.github.com/downloads/eed3si9n/scalaxb/"
     override def notesPath = parentPath / "notes"
     override def versionFilePackage = "scalaxb"
+    override def generatedPackageName = "xmlschema"
+    override def generatedClassPrefix = Some("X")
     override def compileAction = super.compileAction dependsOn(versionfile)
   }
   

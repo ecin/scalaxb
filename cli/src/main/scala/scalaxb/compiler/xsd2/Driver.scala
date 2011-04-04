@@ -27,9 +27,7 @@ import java.net.{URI}
 import scala.xml.{Node, Elem}
 import scalaxb.compiler.{Module, Config, Snippet, CustomXML}
 import scalaxb._
-import Scalaxb._
 import xmlschema._
-import XDefaultXMLProtocol._
 
 class Driver extends Module { driver =>
   import scala.xml.factory.{XMLLoader}

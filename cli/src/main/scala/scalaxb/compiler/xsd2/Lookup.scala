@@ -38,19 +38,19 @@ trait Lookup extends ContextProcessor {
   implicit def scope: NamespaceBinding = schema.scope
   implicit def targetNamespace = schema.targetNamespace
 
-  case class Occurrence(minOccurs: Int, maxOccurs: Int, nillable: Boolean)
+  case class Occurrence(minOccurs: Long, maxOccurs: Long, nillable: Boolean)
   object Occurrence {
-    def apply(minOccurs: Int, maxOccurs: String, nillable: Boolean): Occurrence =
+    def apply(minOccurs: Long, maxOccurs: String, nillable: Boolean): Occurrence =
       Occurrence(minOccurs,
         if (maxOccurs == "unbounded") Int.MaxValue
         else maxOccurs.toInt,
         nillable)
 
     def apply(elem: XElement): Occurrence =
-      Occurrence(elem.minOccurs, elem.maxOccurs, elem.nillable)
+      Occurrence(elem.minOccurs.toLong, elem.maxOccurs, elem.nillable)
 
     def apply(any: XAny): Occurrence =
-      Occurrence(any.minOccurs, any.maxOccurs, false)
+      Occurrence(any.minOccurs.toLong, any.maxOccurs, false)
 
     def apply(particle: DataRecord[XParticleOption]): Occurrence = particle match {
       case DataRecord(_, _, x: XElement)               => Occurrence(x)
@@ -64,16 +64,16 @@ trait Lookup extends ContextProcessor {
     def apply(keyed: KeyedGroup): Occurrence = keyed.key match {
       case GroupTag =>
         // TODO: fix this
-        Occurrence(keyed.group.minOccurs, keyed.group.maxOccurs, false)
+        Occurrence(keyed.group.minOccurs.toLong, keyed.group.maxOccurs, false)
       case ChoiceTag =>
         val choice = keyed.group
-        val o = Occurrence(choice.minOccurs, choice.maxOccurs, false)
+        val o = Occurrence(choice.minOccurs.toLong, choice.maxOccurs, false)
         val particleOs = choice.arg1.toList map {Occurrence(_)}
         Occurrence((o.minOccurs :: (particleOs map { _.minOccurs})).min,
           (o.maxOccurs :: (particleOs map { _.maxOccurs})).max,
           particleOs exists {_.nillable})
       case _ =>
-        Occurrence(keyed.group.minOccurs, keyed.group.maxOccurs, false)
+        Occurrence(keyed.group.minOccurs.toLong, keyed.group.maxOccurs, false)
     }
 
   }
